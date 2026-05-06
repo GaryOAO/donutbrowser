@@ -186,7 +186,8 @@
       "syncService": "Cuenta",
       "integrations": "Integraciones",
       "importProfile": "Importar Perfil",
-      "extensions": "Extensiones"
+      "extensions": "Extensiones",
+      "operationLogs": "Operation Logs"
     }
   },
   "profiles": {
@@ -1600,5 +1601,19 @@
       "upToDateDescription": "Todas las versiones del navegador están actualizadas",
       "updateAllFailed": "Error al actualizar las versiones del navegador"
     }
+  },
+  "operationLogs": {
+    "title": "Operation Logs",
+    "profileFilter": "Profile",
+    "allProfiles": "All profiles",
+    "timeFilter": "Start time",
+    "refresh": "Refresh",
+    "empty": "No operation logs found",
+    "time": "Time",
+    "profile": "Profile",
+    "action": "Action",
+    "result": "Result",
+    "latency": "Latency",
+    "message": "Message"
   }
 }

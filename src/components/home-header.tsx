@@ -4,6 +4,7 @@ import { FaDownload } from "react-icons/fa";
 import { FiWifi } from "react-icons/fi";
 import { GoGear, GoKebabHorizontal, GoPlus } from "react-icons/go";
 import {
+  LuClipboardList,
   LuCloud,
   LuPlug,
   LuPuzzle,
@@ -175,6 +176,7 @@ interface Props {
   onSyncConfigDialogOpen: (open: boolean) => void;
   onIntegrationsDialogOpen: (open: boolean) => void;
   onExtensionManagementDialogOpen: (open: boolean) => void;
+  onOperationLogsDialogOpen: (open: boolean) => void;
   searchQuery: string;
   onSearchQueryChange: (query: string) => void;
 }
@@ -188,6 +190,7 @@ const HomeHeader = ({
   onSyncConfigDialogOpen,
   onIntegrationsDialogOpen,
   onExtensionManagementDialogOpen,
+  onOperationLogsDialogOpen,
   searchQuery,
   onSearchQueryChange,
 }: Props) => {
@@ -330,6 +333,14 @@ const HomeHeader = ({
             >
               <LuPlug className="mr-2 w-4 h-4" />
               {t("header.menu.integrations")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                onOperationLogsDialogOpen(true);
+              }}
+            >
+              <LuClipboardList className="mr-2 w-4 h-4" />
+              {t("header.menu.operationLogs")}
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {
