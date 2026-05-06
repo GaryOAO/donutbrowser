@@ -69,6 +69,7 @@ impl ProfileManager {
     camoufox_config: Option<CamoufoxConfig>,
     wayfern_config: Option<WayfernConfig>,
     group_id: Option<String>,
+    proxy_binding_mode: Option<ProxyBindingMode>,
     ephemeral: bool,
     dns_blocklist: Option<String>,
     launch_hook: Option<String>,
@@ -78,6 +79,11 @@ impl ProfileManager {
     }
 
     let launch_hook = Self::normalize_launch_hook(launch_hook)?;
+    let proxy_binding_mode = if vpn_id.is_some() {
+      ProxyBindingMode::FixedNode
+    } else {
+      proxy_binding_mode.unwrap_or_default()
+    };
 
     // Sync cloud proxy credentials if the profile uses a cloud or cloud-derived proxy
     if let Some(ref pid) = proxy_id {
@@ -322,7 +328,7 @@ impl ProfileManager {
       browser: browser.to_string(),
       version: version.to_string(),
       proxy_id: proxy_id.clone(),
-      proxy_binding_mode: ProxyBindingMode::FixedNode,
+      proxy_binding_mode,
       vpn_id: vpn_id.clone(),
       launch_hook,
       process_id: None,
@@ -2075,6 +2081,7 @@ pub async fn create_browser_profile_with_group(
   camoufox_config: Option<CamoufoxConfig>,
   wayfern_config: Option<WayfernConfig>,
   group_id: Option<String>,
+  proxy_binding_mode: Option<ProxyBindingMode>,
   ephemeral: bool,
   dns_blocklist: Option<String>,
   launch_hook: Option<String>,
@@ -2092,6 +2099,7 @@ pub async fn create_browser_profile_with_group(
       camoufox_config,
       wayfern_config,
       group_id,
+      proxy_binding_mode,
       ephemeral,
       dns_blocklist,
       launch_hook,
@@ -2230,6 +2238,7 @@ pub async fn create_browser_profile_new(
   camoufox_config: Option<CamoufoxConfig>,
   wayfern_config: Option<WayfernConfig>,
   group_id: Option<String>,
+  proxy_binding_mode: Option<ProxyBindingMode>,
   ephemeral: Option<bool>,
   dns_blocklist: Option<String>,
   launch_hook: Option<String>,
@@ -2259,6 +2268,7 @@ pub async fn create_browser_profile_new(
     camoufox_config,
     wayfern_config,
     group_id,
+    proxy_binding_mode,
     ephemeral.unwrap_or(false),
     dns_blocklist,
     launch_hook,

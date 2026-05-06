@@ -291,7 +291,18 @@
       "noProxiesAvailable": "利用可能なプロキシまたはVPNがありません。このプロファイルのトラフィックをルーティングするために追加してください。",
       "search": "プロキシまたは VPN を検索...",
       "notFound": "プロキシまたは VPN が見つかりません。",
-      "searchWithCountries": "プロキシ、VPN、または国を検索..."
+      "searchWithCountries": "プロキシ、VPN、または国を検索...",
+      "vpns": "VPNs",
+      "binding": {
+        "label": "Proxy binding",
+        "description": "Choose how this profile selects proxies at launch.",
+        "fixedNode": "Fixed proxy",
+        "fixedNodeDescription": "Always use the selected proxy.",
+        "sessionRandom": "Sticky random",
+        "sessionRandomDescription": "Choose one healthy proxy for this profile.",
+        "rotatePerLaunch": "Best healthy per launch",
+        "rotatePerLaunchDescription": "Pick the healthiest proxy each time this profile starts."
+      }
     },
     "launchHook": {
       "label": "起動フックURL",

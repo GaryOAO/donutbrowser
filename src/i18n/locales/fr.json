@@ -291,7 +291,18 @@
       "noProxiesAvailable": "Aucun proxy ou VPN disponible. Ajoutez-en un pour router le trafic de ce profil.",
       "search": "Rechercher proxies ou VPN...",
       "notFound": "Aucun proxy ou VPN trouvé.",
-      "searchWithCountries": "Rechercher des proxies, VPN ou pays..."
+      "searchWithCountries": "Rechercher des proxies, VPN ou pays...",
+      "vpns": "VPNs",
+      "binding": {
+        "label": "Proxy binding",
+        "description": "Choose how this profile selects proxies at launch.",
+        "fixedNode": "Fixed proxy",
+        "fixedNodeDescription": "Always use the selected proxy.",
+        "sessionRandom": "Sticky random",
+        "sessionRandomDescription": "Choose one healthy proxy for this profile.",
+        "rotatePerLaunch": "Best healthy per launch",
+        "rotatePerLaunchDescription": "Pick the healthiest proxy each time this profile starts."
+      }
     },
     "launchHook": {
       "label": "URL du hook de lancement",

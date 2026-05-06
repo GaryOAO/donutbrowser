@@ -3,7 +3,7 @@ use crate::camoufox_manager::CamoufoxConfig;
 use crate::daemon_ws::{ws_handler, WsState};
 use crate::events;
 use crate::group_manager::GROUP_MANAGER;
-use crate::profile::manager::ProfileManager;
+use crate::profile::{manager::ProfileManager, ProxyBindingMode};
 use crate::proxy_manager::PROXY_MANAGER;
 use crate::tag_manager::TAG_MANAGER;
 use axum::{
@@ -69,6 +69,8 @@ pub struct CreateProfileRequest {
   #[schema(value_type = Object)]
   pub wayfern_config: Option<serde_json::Value>,
   pub group_id: Option<String>,
+  #[schema(value_type = String)]
+  pub proxy_binding_mode: Option<ProxyBindingMode>,
   pub tags: Option<Vec<String>>,
 }
 
@@ -672,6 +674,7 @@ async fn create_profile(
       camoufox_config,
       wayfern_config,
       request.group_id.clone(),
+      request.proxy_binding_mode,
       false,
       None,
       request.launch_hook.clone(),
