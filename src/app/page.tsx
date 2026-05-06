@@ -22,6 +22,7 @@ import HomeHeader from "@/components/home-header";
 import { ImportProfileDialog } from "@/components/import-profile-dialog";
 import { IntegrationsDialog } from "@/components/integrations-dialog";
 import { LaunchOnLoginDialog } from "@/components/launch-on-login-dialog";
+import { OperationLogsDialog } from "@/components/operation-logs-dialog";
 import { PermissionDialog } from "@/components/permission-dialog";
 import { ProfilesDataTable } from "@/components/profile-data-table";
 import { ProfileSelectorDialog } from "@/components/profile-selector-dialog";
@@ -139,6 +140,7 @@ export default function Home() {
 
   const [createProfileDialogOpen, setCreateProfileDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [operationLogsOpen, setOperationLogsOpen] = useState(false);
   const [integrationsDialogOpen, setIntegrationsDialogOpen] = useState(false);
   const [importProfileDialogOpen, setImportProfileDialogOpen] = useState(false);
   const [proxyManagementDialogOpen, setProxyManagementDialogOpen] =
@@ -1097,6 +1099,7 @@ export default function Home() {
             onSyncConfigDialogOpen={setSyncConfigDialogOpen}
             onIntegrationsDialogOpen={setIntegrationsDialogOpen}
             onExtensionManagementDialogOpen={setExtensionManagementDialogOpen}
+            onOperationLogsDialogOpen={setOperationLogsOpen}
             searchQuery={searchQuery}
             onSearchQueryChange={setSearchQuery}
           />
@@ -1153,6 +1156,11 @@ export default function Home() {
         crossOsUnlocked={crossOsUnlocked}
       />
 
+      <OperationLogsDialog
+        open={operationLogsOpen}
+        onOpenChange={setOperationLogsOpen}
+        profiles={profiles}
+      />
       <SettingsDialog
         isOpen={settingsDialogOpen}
         onClose={() => {

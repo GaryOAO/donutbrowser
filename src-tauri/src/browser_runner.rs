@@ -3,6 +3,7 @@ use crate::camoufox_manager::{CamoufoxConfig, CamoufoxManager};
 use crate::cloud_auth::CLOUD_AUTH;
 use crate::downloaded_browsers_registry::DownloadedBrowsersRegistry;
 use crate::events;
+use crate::operation_log::{operation_start, record_operation};
 use crate::platform_browser;
 use crate::profile::{BrowserProfile, ProfileManager};
 use crate::proxy_manager::PROXY_MANAGER;
@@ -106,7 +107,17 @@ impl BrowserRunner {
     &self,
     profile: &BrowserProfile,
   ) -> Result<Option<ProxySettings>, String> {
+    let started_at = operation_start();
     if let Some(proxy_settings) = self.resolve_launch_hook_proxy(profile).await? {
+      record_operation(
+        Some(profile.id.to_string()),
+        profile.proxy_id.clone(),
+        Some(proxy_settings.host.clone()),
+        "assign_proxy",
+        "success",
+        started_at,
+        None,
+      );
       return Ok(Some(proxy_settings));
     }
 
@@ -116,10 +127,43 @@ impl BrowserRunner {
       profile.proxy_binding_mode,
     );
     let selected_id = selected.as_ref().map(|(id, _)| id);
-    self
+    let selected_log_id = selected
+      .as_ref()
+      .map(|(id, _)| id.clone())
+      .or_else(|| profile.proxy_id.clone());
+    let resolved = self
       .resolve_proxy_with_refresh(selected_id, Some(&profile.id.to_string()))
-      .await
-      .map(|resolved| resolved.or_else(|| selected.map(|(_, settings)| settings)))
+      .await;
+
+    match resolved {
+      Ok(resolved_proxy) => {
+        let proxy = resolved_proxy.or_else(|| selected.map(|(_, settings)| settings));
+        if let Some(proxy) = &proxy {
+          record_operation(
+            Some(profile.id.to_string()),
+            selected_log_id,
+            Some(proxy.host.clone()),
+            "assign_proxy",
+            "success",
+            started_at,
+            None,
+          );
+        }
+        Ok(proxy)
+      }
+      Err(error) => {
+        record_operation(
+          Some(profile.id.to_string()),
+          selected_log_id,
+          None,
+          "assign_proxy",
+          "failed",
+          started_at,
+          Some(error.clone()),
+        );
+        Err(error)
+      }
+    }
   }
 
   /// Get the executable path for a browser profile
@@ -218,6 +262,7 @@ impl BrowserRunner {
       // If proxy startup fails, DO NOT launch Camoufox - it requires local proxy
       let profile_id_str = profile.id.to_string();
       let blocklist_file = Self::resolve_blocklist_file(profile).await?;
+      let proxy_start_at = operation_start();
       let local_proxy = PROXY_MANAGER
         .start_proxy(
           app_handle.clone(),
@@ -230,9 +275,27 @@ impl BrowserRunner {
         .await
         .map_err(|e| {
           let error_msg = format!("Failed to start local proxy for Camoufox: {e}");
+          record_operation(
+            Some(profile.id.to_string()),
+            profile.proxy_id.clone(),
+            None,
+            "start_proxy",
+            "failed",
+            proxy_start_at,
+            Some(error_msg.clone()),
+          );
           log::error!("{}", error_msg);
           error_msg
         })?;
+      record_operation(
+        Some(profile.id.to_string()),
+        profile.proxy_id.clone(),
+        Some(local_proxy.host.clone()),
+        "start_proxy",
+        "success",
+        proxy_start_at,
+        None,
+      );
 
       // Format proxy URL for camoufox - always use HTTP for the local proxy
       let proxy_url = format!("http://{}:{}", local_proxy.host, local_proxy.port);
@@ -479,6 +542,7 @@ impl BrowserRunner {
       // If proxy startup fails, DO NOT launch Wayfern - it requires local proxy
       let profile_id_str = profile.id.to_string();
       let blocklist_file = Self::resolve_blocklist_file(profile).await?;
+      let proxy_start_at = operation_start();
       let local_proxy = PROXY_MANAGER
         .start_proxy(
           app_handle.clone(),
@@ -491,9 +555,27 @@ impl BrowserRunner {
         .await
         .map_err(|e| {
           let error_msg = format!("Failed to start local proxy for Wayfern: {e}");
+          record_operation(
+            Some(profile.id.to_string()),
+            profile.proxy_id.clone(),
+            None,
+            "start_proxy",
+            "failed",
+            proxy_start_at,
+            Some(error_msg.clone()),
+          );
           log::error!("{}", error_msg);
           error_msg
         })?;
+      record_operation(
+        Some(profile.id.to_string()),
+        profile.proxy_id.clone(),
+        Some(local_proxy.host.clone()),
+        "start_proxy",
+        "success",
+        proxy_start_at,
+        None,
+      );
 
       // Format proxy URL for wayfern - always use HTTP for the local proxy
       let proxy_url = format!("http://{}:{}", local_proxy.host, local_proxy.port);
@@ -2243,6 +2325,7 @@ pub async fn launch_browser_profile(
   profile: BrowserProfile,
   url: Option<String>,
 ) -> Result<BrowserProfile, String> {
+  let launch_started_at = operation_start();
   log::info!(
     "Launch request received for profile: {} (ID: {})",
     profile.name,
@@ -2334,6 +2417,7 @@ pub async fn launch_browser_profile(
     // Always start a local proxy, even if there's no upstream proxy
     // This allows for traffic monitoring and future features
     let blocklist_file = BrowserRunner::resolve_blocklist_file(&profile_for_launch).await?;
+    let proxy_started_at = operation_start();
     match PROXY_MANAGER
       .start_proxy(
         app_handle.clone(),
@@ -2346,6 +2430,15 @@ pub async fn launch_browser_profile(
       .await
     {
       Ok(internal_proxy) => {
+        record_operation(
+          Some(profile_for_launch.id.to_string()),
+          profile_for_launch.proxy_id.clone(),
+          Some(internal_proxy.host.clone()),
+          "start_proxy",
+          "success",
+          proxy_started_at,
+          None,
+        );
         // Use internal proxy for subsequent launch
         internal_proxy_settings = Some(internal_proxy.clone());
 
@@ -2386,6 +2479,15 @@ pub async fn launch_browser_profile(
       }
       Err(e) => {
         let error_msg = format!("Failed to start local proxy: {e}");
+        record_operation(
+          Some(profile_for_launch.id.to_string()),
+          profile_for_launch.proxy_id.clone(),
+          None,
+          "start_proxy",
+          "failed",
+          proxy_started_at,
+          Some(error_msg.clone()),
+        );
         log::error!("{}", error_msg);
         // DO NOT launch browser if proxy startup fails - all browsers must use local proxy
         return Err(error_msg);
@@ -2401,6 +2503,15 @@ pub async fn launch_browser_profile(
 
   // Launch browser or open URL in existing instance
   let updated_profile = browser_runner.launch_or_open_url(app_handle.clone(), &profile_for_launch, url, internal_proxy_settings.as_ref()).await.map_err(|e| {
+    record_operation(
+      Some(profile_for_launch.id.to_string()),
+      profile_for_launch.proxy_id.clone(),
+      None,
+      "launch_browser",
+      "failed",
+      launch_started_at,
+      Some(e.to_string()),
+    );
     log::info!("Browser launch failed for profile: {}, error: {}", profile_for_launch.name, e);
 
     // Emit a failure event to clear loading states in the frontend
@@ -2431,6 +2542,15 @@ pub async fn launch_browser_profile(
     "Browser launch completed for profile: {} (ID: {})",
     updated_profile.name,
     updated_profile.id
+  );
+  record_operation(
+    Some(updated_profile.id.to_string()),
+    updated_profile.proxy_id.clone(),
+    None,
+    "launch_browser",
+    "success",
+    launch_started_at,
+    None,
   );
 
   // Now update the proxy with the correct PID if we have one
