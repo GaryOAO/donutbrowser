@@ -1842,6 +1842,7 @@ impl McpServer {
         None,
         None,
         group_id,
+        None,
         false,
         None,
         launch_hook,

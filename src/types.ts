@@ -17,6 +17,7 @@ export interface BrowserProfile {
   browser: string;
   version: string;
   proxy_id?: string; // Reference to stored proxy
+  proxy_binding_mode?: ProxyBindingMode;
   vpn_id?: string; // Reference to stored VPN config
   launch_hook?: string;
   process_id?: number;
@@ -68,6 +69,11 @@ export interface ExtensionGroup {
 export type SyncMode = "Disabled" | "Regular" | "Encrypted";
 
 export type SyncStatus = "Disabled" | "Syncing" | "Synced" | "Error";
+
+export type ProxyBindingMode =
+  | "fixed_node"
+  | "session_random"
+  | "rotate_per_launch";
 
 export interface SyncSettings {
   sync_server_url?: string;
@@ -136,6 +142,10 @@ export interface StoredProxy {
   geo_region?: string;
   geo_city?: string;
   geo_isp?: string;
+  failure_count?: number;
+  last_latency_ms?: number;
+  last_available_at?: number;
+  cooldown_until?: number;
 }
 
 export interface LocationItem {
