@@ -11,6 +11,7 @@ use tauri_plugin_shell::ShellExt;
 use crate::browser::ProxySettings;
 use crate::events;
 use crate::ip_utils;
+use crate::profile::ProxyBindingMode;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -128,6 +129,8 @@ pub struct ProxyCheckResult {
 }
 
 pub const CLOUD_PROXY_ID: &str = "cloud-included-proxy";
+const DEFAULT_PROXY_FAILURE_THRESHOLD: u32 = 3;
+const DEFAULT_PROXY_COOLDOWN_SECONDS: u64 = 120;
 
 // Stored proxy configuration with name and ID for reuse
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -943,6 +946,80 @@ impl ProxyManager {
     stored_proxies
       .get(proxy_id)
       .map(|p| p.proxy_settings.clone())
+  }
+
+  pub fn select_proxy_for_profile(
+    &self,
+    profile_id: &str,
+    preferred_proxy_id: Option<&str>,
+    binding_mode: ProxyBindingMode,
+  ) -> Option<(String, ProxySettings)> {
+    if binding_mode == ProxyBindingMode::FixedNode {
+      let proxy_id = preferred_proxy_id?;
+      return self
+        .get_proxy_settings_by_id(proxy_id)
+        .map(|s| (proxy_id.to_string(), s));
+    }
+
+    let now = Self::get_current_timestamp();
+    let mut candidates: Vec<(String, ProxySettings, u32, Option<u64>)> = self
+      .get_stored_proxies()
+      .into_iter()
+      .filter_map(|p| {
+        let cfg = crate::proxy_storage::get_proxy_config(&p.id);
+        let in_cooldown = cfg
+          .as_ref()
+          .and_then(|c| c.cooldown_until)
+          .is_some_and(|until| until > now);
+        if in_cooldown {
+          return None;
+        }
+        let failures = cfg.as_ref().map_or(0, |c| c.failure_count);
+        let latency = cfg.and_then(|c| c.last_latency_ms);
+        Some((p.id, p.proxy_settings, failures, latency))
+      })
+      .collect();
+
+    if candidates.is_empty() {
+      return preferred_proxy_id
+        .and_then(|id| self.get_proxy_settings_by_id(id).map(|s| (id.to_string(), s)));
+    }
+
+    match binding_mode {
+      ProxyBindingMode::SessionRandom => {
+        let idx = (Self::generate_sid_for_profile(profile_id).bytes().fold(0usize, |acc, b| {
+          acc.wrapping_add(b as usize)
+        })) % candidates.len();
+        let (id, settings, _, _) = candidates.swap_remove(idx);
+        Some((id, settings))
+      }
+      ProxyBindingMode::RotatePerLaunch => {
+        candidates.sort_by_key(|(_, _, failures, latency)| (*failures, latency.unwrap_or(u64::MAX)));
+        let (id, settings, _, _) = candidates.remove(0);
+        Some((id, settings))
+      }
+      ProxyBindingMode::FixedNode => None,
+    }
+  }
+
+  pub fn mark_proxy_health(&self, proxy_id: &str, success: bool, latency_ms: Option<u64>) {
+    if let Some(mut cfg) = crate::proxy_storage::get_proxy_config(proxy_id) {
+      let now = Self::get_current_timestamp();
+      if success {
+        cfg.failure_count = 0;
+        cfg.last_available_at = Some(now);
+        cfg.cooldown_until = None;
+        if let Some(latency) = latency_ms {
+          cfg.last_latency_ms = Some(latency);
+        }
+      } else {
+        cfg.failure_count = cfg.failure_count.saturating_add(1);
+        if cfg.failure_count >= DEFAULT_PROXY_FAILURE_THRESHOLD {
+          cfg.cooldown_until = Some(now + DEFAULT_PROXY_COOLDOWN_SECONDS);
+        }
+      }
+      let _ = crate::proxy_storage::update_proxy_config(&cfg);
+    }
   }
 
   fn classify_proxy_error(raw_error: &str, settings: &ProxySettings) -> String {

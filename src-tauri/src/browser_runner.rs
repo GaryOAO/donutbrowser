@@ -110,9 +110,16 @@ impl BrowserRunner {
       return Ok(Some(proxy_settings));
     }
 
+    let selected = PROXY_MANAGER.select_proxy_for_profile(
+      &profile.id.to_string(),
+      profile.proxy_id.as_deref(),
+      profile.proxy_binding_mode,
+    );
+    let selected_id = selected.as_ref().map(|(id, _)| id);
     self
-      .resolve_proxy_with_refresh(profile.proxy_id.as_ref(), Some(&profile.id.to_string()))
+      .resolve_proxy_with_refresh(selected_id, Some(&profile.id.to_string()))
       .await
+      .map(|resolved| resolved.or_else(|| selected.map(|(_, settings)| settings)))
   }
 
   /// Get the executable path for a browser profile
