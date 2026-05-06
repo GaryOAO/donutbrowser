@@ -266,6 +266,20 @@
       "assignProxy": "Assign Proxy",
       "assignExtensionGroup": "Assign Extension Group",
       "copyCookies": "Copy Cookies"
+    },
+    "bulkTasks": {
+      "title": "Bulk tasks ({{count}})",
+      "start": "Batch Start",
+      "stop": "Batch Stop",
+      "healthCheck": "Health Check",
+      "success": "Success",
+      "failed": "Failed",
+      "retries": "Retries: {{count}}",
+      "retriesLabel": "Retries",
+      "profile": "Profile",
+      "result": "Result",
+      "time": "Time",
+      "runFailed": "Bulk task failed"
     }
   },
   "createProfile": {

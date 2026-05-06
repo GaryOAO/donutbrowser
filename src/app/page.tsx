@@ -5,6 +5,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrent } from "@tauri-apps/plugin-deep-link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { LuActivity, LuPlay, LuSquare } from "react-icons/lu";
 import { CamoufoxConfigDialog } from "@/components/camoufox-config-dialog";
 import { CloneProfileDialog } from "@/components/clone-profile-dialog";
 import { CommercialTrialModal } from "@/components/commercial-trial-modal";
@@ -33,6 +34,16 @@ import { SettingsDialog } from "@/components/settings-dialog";
 import { SyncAllDialog } from "@/components/sync-all-dialog";
 import { SyncConfigDialog } from "@/components/sync-config-dialog";
 import { SyncFollowerDialog } from "@/components/sync-follower-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { WayfernTermsDialog } from "@/components/wayfern-terms-dialog";
 import { WindowResizeWarningDialog } from "@/components/window-resize-warning-dialog";
 import { useAppUpdateNotifications } from "@/hooks/use-app-update-notifications";
@@ -68,6 +79,19 @@ type BrowserTypeString = "camoufox" | "wayfern";
 interface PendingUrl {
   id: string;
   url: string;
+}
+
+type BulkTaskAction = "start" | "stop" | "changeProxy" | "healthCheck";
+
+interface BulkTaskItemResult {
+  profileId: string;
+  success: boolean;
+  retries: number;
+  errorCode?: string;
+  errorMessage?: string;
+  timestamp: number;
+  proxyNode?: string;
+  log: string;
 }
 
 export default function Home() {
@@ -201,6 +225,10 @@ export default function Home() {
     useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [syncConfigDialogOpen, setSyncConfigDialogOpen] = useState(false);
+  const [bulkTaskResults, setBulkTaskResults] = useState<BulkTaskItemResult[]>(
+    [],
+  );
+  const [isBulkTaskRunning, setIsBulkTaskRunning] = useState(false);
   const [deviceCodeDialogOpen, setDeviceCodeDialogOpen] = useState(false);
   const [syncAllDialogOpen, setSyncAllDialogOpen] = useState(false);
   const [profileSyncDialogOpen, setProfileSyncDialogOpen] = useState(false);
@@ -1083,6 +1111,32 @@ export default function Home() {
     return filtered;
   }, [profiles, selectedGroupId, searchQuery]);
 
+  const runBulkTask = useCallback(
+    async (action: BulkTaskAction) => {
+      if (selectedProfiles.length === 0) return;
+      try {
+        setIsBulkTaskRunning(true);
+        const results = await invoke<BulkTaskItemResult[]>(
+          "run_bulk_browser_tasks",
+          {
+            request: {
+              profileIds: selectedProfiles,
+              action,
+              maxConcurrency: 3,
+            },
+          },
+        );
+        setBulkTaskResults(results);
+      } catch (error) {
+        showErrorToast(t("profiles.bulkTasks.runFailed"));
+        console.error("bulk task failed", error);
+      } finally {
+        setIsBulkTaskRunning(false);
+      }
+    },
+    [selectedProfiles, t],
+  );
+
   // Update loading states
   const isLoading = profilesLoading || groupsLoading || proxiesLoading;
 
@@ -1111,6 +1165,96 @@ export default function Home() {
             groups={groupsData}
             isLoading={isLoading}
           />
+          {selectedProfiles.length > 0 ? (
+            <div className="mt-3 rounded-md border bg-background p-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-sm font-medium">
+                  {t("profiles.bulkTasks.title", {
+                    count: selectedProfiles.length,
+                  })}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={isBulkTaskRunning}
+                    onClick={() => void runBulkTask("start")}
+                  >
+                    <LuPlay className="mr-2 h-4 w-4" />
+                    {t("profiles.bulkTasks.start")}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={isBulkTaskRunning}
+                    onClick={() => void runBulkTask("stop")}
+                  >
+                    <LuSquare className="mr-2 h-4 w-4" />
+                    {t("profiles.bulkTasks.stop")}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={isBulkTaskRunning}
+                    onClick={() => void runBulkTask("healthCheck")}
+                  >
+                    <LuActivity className="mr-2 h-4 w-4" />
+                    {t("profiles.bulkTasks.healthCheck")}
+                  </Button>
+                </div>
+              </div>
+              {bulkTaskResults.length > 0 ? (
+                <div className="mt-3 max-h-56 overflow-auto rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{t("profiles.bulkTasks.profile")}</TableHead>
+                        <TableHead>{t("profiles.bulkTasks.result")}</TableHead>
+                        <TableHead>
+                          {t("profiles.bulkTasks.retriesLabel")}
+                        </TableHead>
+                        <TableHead>{t("profiles.bulkTasks.time")}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {bulkTaskResults.map((item) => {
+                        const profileName =
+                          profiles.find(
+                            (profile) => profile.id === item.profileId,
+                          )?.name ?? item.profileId;
+                        return (
+                          <TableRow key={item.profileId}>
+                            <TableCell className="max-w-[220px] truncate">
+                              {profileName}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  item.success ? "outline" : "destructive"
+                                }
+                              >
+                                {item.success
+                                  ? t("profiles.bulkTasks.success")
+                                  : t("profiles.bulkTasks.failed")}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{item.retries}</TableCell>
+                            <TableCell>
+                              {new Date(
+                                item.timestamp * 1000,
+                              ).toLocaleTimeString()}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <ProfilesDataTable
             profiles={filteredProfiles}
             onLaunchProfile={launchProfile}
