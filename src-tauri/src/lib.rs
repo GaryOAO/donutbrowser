@@ -65,6 +65,7 @@ pub mod vpn_worker_storage;
 
 use browser_runner::{
   check_browser_exists, kill_browser_profile, launch_browser_profile, open_url_with_profile,
+  run_bulk_browser_tasks,
 };
 
 use profile::manager::{
@@ -2032,6 +2033,7 @@ pub fn run() {
       update_profile_dns_blocklist,
       check_browser_status,
       kill_browser_profile,
+      run_bulk_browser_tasks,
       rename_profile,
       get_app_settings,
       save_app_settings,

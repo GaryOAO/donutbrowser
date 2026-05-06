@@ -266,6 +266,20 @@
       "assignProxy": "プロキシを割り当て",
       "assignExtensionGroup": "拡張機能グループを割り当て",
       "copyCookies": "Cookieをコピー"
+    },
+    "bulkTasks": {
+      "title": "Bulk tasks ({{count}})",
+      "start": "Batch Start",
+      "stop": "Batch Stop",
+      "healthCheck": "Health Check",
+      "success": "Success",
+      "failed": "Failed",
+      "retries": "Retries: {{count}}",
+      "retriesLabel": "Retries",
+      "profile": "Profile",
+      "result": "Result",
+      "time": "Time",
+      "runFailed": "Bulk task failed"
     }
   },
   "createProfile": {

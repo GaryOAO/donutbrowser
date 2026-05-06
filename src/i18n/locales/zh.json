@@ -266,6 +266,20 @@
       "assignProxy": "分配代理",
       "assignExtensionGroup": "分配扩展分组",
       "copyCookies": "复制 Cookie"
+    },
+    "bulkTasks": {
+      "title": "批量任务（{{count}}）",
+      "start": "批量启动",
+      "stop": "批量停止",
+      "healthCheck": "健康检查",
+      "success": "成功",
+      "failed": "失败",
+      "retries": "重试：{{count}}",
+      "retriesLabel": "重试",
+      "profile": "配置文件",
+      "result": "结果",
+      "time": "时间",
+      "runFailed": "批量任务失败"
     }
   },
   "createProfile": {
