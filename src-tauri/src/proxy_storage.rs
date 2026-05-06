@@ -16,6 +16,14 @@ pub struct ProxyConfig {
   pub bypass_rules: Vec<String>,
   #[serde(default)]
   pub blocklist_file: Option<String>,
+  #[serde(default)]
+  pub failure_count: u32,
+  #[serde(default)]
+  pub last_latency_ms: Option<u64>,
+  #[serde(default)]
+  pub last_available_at: Option<u64>,
+  #[serde(default)]
+  pub cooldown_until: Option<u64>,
 }
 
 impl ProxyConfig {
@@ -30,6 +38,10 @@ impl ProxyConfig {
       profile_id: None,
       bypass_rules: Vec::new(),
       blocklist_file: None,
+      failure_count: 0,
+      last_latency_ms: None,
+      last_available_at: None,
+      cooldown_until: None,
     }
   }
 
