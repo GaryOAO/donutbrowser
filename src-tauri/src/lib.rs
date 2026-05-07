@@ -55,6 +55,7 @@ mod daemon_spawn;
 pub mod daemon_ws;
 pub mod events;
 mod mcp_server;
+mod operation_log;
 mod tag_manager;
 mod team_lock;
 mod version_updater;
@@ -139,6 +140,7 @@ use geoip_downloader::{check_missing_geoip_database, GeoIPDownloader};
 use browser_version_manager::get_browser_release_types;
 
 use api_server::{get_api_server_status, start_api_server, stop_api_server};
+use operation_log::get_recent_operation_logs;
 
 // Trait to extend WebviewWindow with transparent titlebar functionality
 pub trait WindowExt {
@@ -2102,6 +2104,7 @@ pub fn run() {
       download_geoip_database,
       start_api_server,
       stop_api_server,
+      get_recent_operation_logs,
       get_api_server_status,
       get_all_traffic_snapshots,
       clear_all_traffic_stats,
