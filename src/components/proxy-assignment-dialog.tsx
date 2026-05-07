@@ -191,6 +191,33 @@ export function ProxyAssignmentDialog({
     t,
   ]);
 
+  const nativelySupportedProtocols = new Set([
+    "http",
+    "https",
+    "socks5",
+    "socks4",
+    "ss",
+  ]);
+
+  const gatewayProtocols = new Set([
+    "vmess",
+    "vless",
+    "trojan",
+    "hysteria",
+    "hysteria2",
+    "tuic",
+  ]);
+
+  const nodeNeedsGateway = (node: PoolNode) => {
+    if (node.protocol === "unknown") return false;
+    if (nativelySupportedProtocols.has(node.protocol) && !node.extra?.plugin)
+      return false;
+    if (gatewayProtocols.has(node.protocol)) return true;
+    if (nativelySupportedProtocols.has(node.protocol) && node.extra?.plugin)
+      return true;
+    return false;
+  };
+
   const nodesBySubscription = subscriptions
     .map((sub) => ({
       sub,
@@ -435,6 +462,11 @@ export function ProxyAssignmentDialog({
                                     >
                                       {t("proxies.assignment.currentlyBound")}
                                     </Badge>
+                                  )}
+                                  {nodeNeedsGateway(node) && (
+                                    <span className="text-[10px] bg-warning/10 text-warning-foreground px-1.5 py-0.5 rounded border border-warning/50">
+                                      {t("subscriptionPool.gatewayRequired")}
+                                    </span>
                                   )}
                                   <Badge
                                     variant="outline"

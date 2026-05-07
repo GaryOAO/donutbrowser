@@ -1690,7 +1690,8 @@
     "allNodes": "Все узлы",
     "requiresGateway": "Требуется прокси-шлюз (mihomo/sing-box)",
     "testAll": "Тест всех",
-    "testAllResult": "{{success}} доступных, {{fail}} недоступных"
+    "testAllResult": "{{success}} доступных, {{fail}} недоступных",
+    "gatewayRequired": "Нужен шлюз"
   },
   "gateway": {
     "title": "Прокси-шлюз",

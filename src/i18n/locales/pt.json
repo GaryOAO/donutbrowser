@@ -1690,7 +1690,8 @@
     "allNodes": "Todos os Nós",
     "requiresGateway": "Requer gateway de proxy (mihomo/sing-box)",
     "testAll": "Testar Todos",
-    "testAllResult": "{{success}} acessíveis, {{fail}} inacessíveis"
+    "testAllResult": "{{success}} acessíveis, {{fail}} inacessíveis",
+    "gatewayRequired": "Gateway necessário"
   },
   "gateway": {
     "title": "Gateway de Proxy",

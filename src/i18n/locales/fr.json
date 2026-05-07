@@ -1690,7 +1690,8 @@
     "allNodes": "Tous les Nœuds",
     "requiresGateway": "Nécessite une passerelle proxy (mihomo/sing-box)",
     "testAll": "Tester Tous",
-    "testAllResult": "{{success}} joignables, {{fail}} injoignables"
+    "testAllResult": "{{success}} joignables, {{fail}} injoignables",
+    "gatewayRequired": "Gateway requis"
   },
   "gateway": {
     "title": "Passerelle Proxy",
