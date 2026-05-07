@@ -291,7 +291,18 @@
       "noProxiesAvailable": "没有可用的代理或VPN。添加一个来路由此配置文件的流量。",
       "search": "搜索代理或 VPN...",
       "notFound": "未找到代理或 VPN。",
-      "searchWithCountries": "搜索代理、VPN 或国家/地区..."
+      "searchWithCountries": "搜索代理、VPN 或国家/地区...",
+      "vpns": "VPNs",
+      "binding": {
+        "label": "代理绑定",
+        "description": "选择此配置文件启动时如何从代理池中选择代理。",
+        "fixedNode": "固定代理",
+        "fixedNodeDescription": "始终使用当前选中的代理。",
+        "sessionRandom": "会话随机",
+        "sessionRandomDescription": "为此配置文件选择一个健康代理并保持绑定。",
+        "rotatePerLaunch": "每次启动选择最优",
+        "rotatePerLaunchDescription": "每次启动时选择当前最健康的代理。"
+      }
     },
     "launchHook": {
       "label": "启动钩子 URL",

@@ -57,6 +57,7 @@ import {
 import type {
   BrowserProfile,
   CamoufoxConfig,
+  ProxyBindingMode,
   SyncSettings,
   WayfernConfig,
 } from "@/types";
@@ -532,6 +533,7 @@ export default function Home() {
       ephemeral?: boolean;
       dnsBlocklist?: string;
       launchHook?: string;
+      proxyBindingMode?: ProxyBindingMode;
     }) => {
       try {
         const profile = await invoke<BrowserProfile>(
@@ -551,6 +553,7 @@ export default function Home() {
             ephemeral: profileData.ephemeral,
             dnsBlocklist: profileData.dnsBlocklist,
             launchHook: profileData.launchHook,
+            proxyBindingMode: profileData.proxyBindingMode,
           },
         );
 
