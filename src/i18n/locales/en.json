@@ -1690,7 +1690,8 @@
     "allNodes": "All Nodes",
     "requiresGateway": "Requires proxy gateway (mihomo/sing-box)",
     "testAll": "Test All Nodes",
-    "testAllResult": "{{success}} reachable, {{fail}} unreachable"
+    "testAllResult": "{{success}} reachable, {{fail}} unreachable",
+    "gatewayRequired": "Gateway Required"
   },
   "gateway": {
     "title": "Proxy Gateway",

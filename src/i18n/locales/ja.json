@@ -1690,7 +1690,8 @@
     "allNodes": "すべてのノード",
     "requiresGateway": "プロキシゲートウェイが必要 (mihomo/sing-box)",
     "testAll": "全ノードテスト",
-    "testAllResult": "{{success}}個到達可能、{{fail}}個到達不能"
+    "testAllResult": "{{success}}個到達可能、{{fail}}個到達不能",
+    "gatewayRequired": "ゲートウェイ必要"
   },
   "gateway": {
     "title": "プロキシゲートウェイ",

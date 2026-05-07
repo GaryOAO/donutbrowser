@@ -1690,7 +1690,8 @@
     "allNodes": "所有节点",
     "requiresGateway": "需要代理网关 (mihomo/sing-box)",
     "testAll": "测试所有节点",
-    "testAllResult": "{{success}} 个可达，{{fail}} 个不可达"
+    "testAllResult": "{{success}} 个可达，{{fail}} 个不可达",
+    "gatewayRequired": "需要网关"
   },
   "gateway": {
     "title": "代理网关",

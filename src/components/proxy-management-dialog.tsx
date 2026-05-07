@@ -519,10 +519,28 @@ export function ProxyManagementDialog({
     "ss",
   ]);
 
+  const gatewayProtocols = new Set([
+    "vmess",
+    "vless",
+    "trojan",
+    "hysteria",
+    "hysteria2",
+    "tuic",
+  ]);
+
   const isNodeImportable = (node: PoolNode) => {
     if (!nativelySupportedProtocols.has(node.protocol)) return false;
     if (node.extra?.plugin) return false;
     return true;
+  };
+
+  const nodeNeedsGateway = (node: PoolNode) => {
+    if (node.protocol === "unknown") return false;
+    if (isNodeImportable(node)) return false;
+    if (gatewayProtocols.has(node.protocol)) return true;
+    if (nativelySupportedProtocols.has(node.protocol) && node.extra?.plugin)
+      return true;
+    return false;
   };
 
   const filteredPoolNodes = selectedSubFilter
@@ -1485,7 +1503,8 @@ export function ProxyManagementDialog({
                         </TableHeader>
                         <TableBody>
                           {filteredPoolNodes.map((node) => {
-                            const isSupported = isNodeImportable(node);
+                            const isImportable = isNodeImportable(node);
+                            const needsGw = nodeNeedsGateway(node);
                             const isImported = !!node.stored_proxy_id;
 
                             return (
@@ -1493,7 +1512,7 @@ export function ProxyManagementDialog({
                                 <TableCell>
                                   <Badge
                                     variant={
-                                      isSupported ? "default" : "secondary"
+                                      isImportable ? "default" : "secondary"
                                     }
                                   >
                                     {node.protocol.toUpperCase()}
@@ -1519,24 +1538,33 @@ export function ProxyManagementDialog({
                                     >
                                       {t("subscriptionPool.imported")}
                                     </Badge>
-                                  ) : isSupported ? (
+                                  ) : isImportable ? (
                                     <Badge variant="outline">
                                       {t("subscriptionPool.supported")}
                                     </Badge>
-                                  ) : (
+                                  ) : needsGw ? (
                                     <Tooltip>
                                       <TooltipTrigger asChild>
                                         <Badge
                                           variant="outline"
-                                          className="border-warning text-warning"
+                                          className="bg-warning/10 text-warning-foreground border-warning/50"
                                         >
-                                          {t("subscriptionPool.unsupported")}
+                                          {t(
+                                            "subscriptionPool.gatewayRequired",
+                                          )}
                                         </Badge>
                                       </TooltipTrigger>
                                       <TooltipContent>
                                         {t("subscriptionPool.requiresGateway")}
                                       </TooltipContent>
                                     </Tooltip>
+                                  ) : (
+                                    <Badge
+                                      variant="outline"
+                                      className="bg-destructive/10 text-destructive-foreground border-destructive/50"
+                                    >
+                                      {t("subscriptionPool.unsupported")}
+                                    </Badge>
                                   )}
                                 </TableCell>
                                 <TableCell className="text-sm">
@@ -1548,7 +1576,7 @@ export function ProxyManagementDialog({
                                 </TableCell>
                                 <TableCell className="text-right">
                                   <div className="flex items-center justify-end gap-1">
-                                    {isSupported && !isImported && (
+                                    {isImportable && !isImported && (
                                       <Button
                                         variant="ghost"
                                         size="sm"

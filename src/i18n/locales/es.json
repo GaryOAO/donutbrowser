@@ -1690,7 +1690,8 @@
     "allNodes": "Todos los Nodos",
     "requiresGateway": "Requiere pasarela proxy (mihomo/sing-box)",
     "testAll": "Probar Todos",
-    "testAllResult": "{{success}} alcanzables, {{fail}} inalcanzables"
+    "testAllResult": "{{success}} alcanzables, {{fail}} inalcanzables",
+    "gatewayRequired": "Requiere Gateway"
   },
   "gateway": {
     "title": "Puerta de Enlace Proxy",
