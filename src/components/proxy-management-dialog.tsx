@@ -145,6 +145,11 @@ export function ProxyManagementDialog({
   const [isTogglingSync, setIsTogglingSync] = useState<Record<string, boolean>>(
     {},
   );
+  const [selectedProxyIds, setSelectedProxyIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
+  const [isBatchDeleting, setIsBatchDeleting] = useState(false);
 
   // VPN state
   const [showVpnForm, setShowVpnForm] = useState(false);
@@ -552,6 +557,31 @@ export function ProxyManagementDialog({
     [t],
   );
 
+  const handleBatchDelete = useCallback(async () => {
+    setIsBatchDeleting(true);
+    try {
+      const ids = Array.from(selectedProxyIds);
+      const deleted = await invoke<number>("batch_delete_stored_proxies", {
+        proxyIds: ids,
+      });
+      showSuccessToast(
+        t("proxies.management.batchDeleteSuccess", { count: deleted }),
+      );
+      setSelectedProxyIds(new Set());
+      await emit("stored-proxies-changed");
+    } catch (error) {
+      console.error("Failed to batch delete proxies:", error);
+      showErrorToast(
+        error instanceof Error
+          ? error.message
+          : t("proxies.management.deleteFailed"),
+      );
+    } finally {
+      setIsBatchDeleting(false);
+      setShowBatchDeleteConfirm(false);
+    }
+  }, [selectedProxyIds, t]);
+
   // VPN handlers
   const handleDeleteVpn = useCallback((vpn: VpnConfig) => {
     setVpnToDelete(vpn);
@@ -681,6 +711,27 @@ export function ProxyManagementDialog({
                     </div>
                   </div>
 
+                  {selectedProxyIds.size > 0 && (
+                    <div className="flex items-center gap-3 px-3 py-2 bg-muted rounded-md">
+                      <span className="text-sm text-muted-foreground">
+                        {t("proxies.management.selectedCount", {
+                          count: selectedProxyIds.size,
+                        })}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => {
+                          setShowBatchDeleteConfirm(true);
+                        }}
+                        className="flex gap-2 items-center"
+                      >
+                        <LuTrash2 className="w-4 h-4" />
+                        {t("proxies.management.batchDelete")}
+                      </Button>
+                    </div>
+                  )}
+
                   {isLoading ? (
                     <div className="text-sm text-muted-foreground">
                       {t("proxies.management.loading")}
@@ -694,6 +745,36 @@ export function ProxyManagementDialog({
                       <Table className="min-w-max">
                         <TableHeader>
                           <TableRow>
+                            <TableHead className="w-px">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex items-center">
+                                    <Checkbox
+                                      checked={
+                                        storedProxies.length > 0 &&
+                                        storedProxies.every((p) =>
+                                          selectedProxyIds.has(p.id),
+                                        )
+                                      }
+                                      onCheckedChange={(checked) => {
+                                        if (checked) {
+                                          setSelectedProxyIds(
+                                            new Set(
+                                              storedProxies.map((p) => p.id),
+                                            ),
+                                          );
+                                        } else {
+                                          setSelectedProxyIds(new Set());
+                                        }
+                                      }}
+                                    />
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{t("proxies.management.selectAll")}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TableHead>
                             <TableHead>{t("common.labels.name")}</TableHead>
                             <TableHead className="whitespace-nowrap w-px">
                               {t("proxies.management.usage")}
@@ -716,6 +797,22 @@ export function ProxyManagementDialog({
                             );
                             return (
                               <TableRow key={proxy.id}>
+                                <TableCell className="w-px">
+                                  <Checkbox
+                                    checked={selectedProxyIds.has(proxy.id)}
+                                    onCheckedChange={(checked) => {
+                                      setSelectedProxyIds((prev) => {
+                                        const next = new Set(prev);
+                                        if (checked) {
+                                          next.add(proxy.id);
+                                        } else {
+                                          next.delete(proxy.id);
+                                        }
+                                        return next;
+                                      });
+                                    }}
+                                  />
+                                </TableCell>
                                 <TableCell className="font-medium">
                                   <div className="flex items-center gap-2">
                                     <Tooltip>
@@ -1449,6 +1546,19 @@ export function ProxyManagementDialog({
         })}
         confirmButtonText={t("common.buttons.delete")}
         isLoading={isDeleting}
+      />
+      <DeleteConfirmationDialog
+        isOpen={showBatchDeleteConfirm}
+        onClose={() => {
+          setShowBatchDeleteConfirm(false);
+        }}
+        onConfirm={handleBatchDelete}
+        title={t("proxies.management.batchDelete")}
+        description={t("proxies.management.batchDeleteConfirm", {
+          count: selectedProxyIds.size,
+        })}
+        confirmButtonText={t("common.buttons.delete")}
+        isLoading={isBatchDeleting}
       />
       <ProxyImportDialog
         isOpen={showImportDialog}

@@ -373,7 +373,12 @@
       "deleteTitle": "Удалить прокси",
       "deleteDescription": "Это действие нельзя отменить. Прокси «{{name}}» будет удален навсегда.",
       "title": "Прокси и VPN",
-      "tabSubscriptions": "Подписки"
+"tabSubscriptions": "Подписки",
+"selectAll": "Выбрать все",
+      "selectedCount": "Выбрано: {{count}}",
+      "batchDelete": "Удалить выбранные",
+      "batchDeleteConfirm": "Вы уверены, что хотите удалить {{count}} прокси?",
+      "batchDeleteSuccess": "Удалено прокси: {{count}}"
     },
     "add": "Добавить прокси",
     "edit": "Редактировать прокси",

@@ -373,7 +373,12 @@
       "deleteFailed": "Failed to delete proxy",
       "deleteTitle": "Delete Proxy",
       "deleteDescription": "This action cannot be undone. This will permanently delete the proxy \"{{name}}\".",
-      "title": "Proxies & VPNs"
+      "title": "Proxies & VPNs",
+      "selectAll": "Select All",
+      "selectedCount": "{{count}} selected",
+      "batchDelete": "Delete Selected",
+      "batchDeleteConfirm": "Are you sure you want to delete {{count}} proxies?",
+      "batchDeleteSuccess": "Deleted {{count}} proxies"
     },
     "add": "Add Proxy",
     "edit": "Edit Proxy",

@@ -373,7 +373,12 @@
       "deleteTitle": "Eliminar proxy",
       "deleteDescription": "Esta acción no se puede deshacer. Se eliminará permanentemente el proxy \"{{name}}\".",
       "title": "Proxies y VPN",
-      "tabSubscriptions": "Suscripciones"
+"tabSubscriptions": "Suscripciones",
+"selectAll": "Seleccionar todo",
+      "selectedCount": "{{count}} seleccionados",
+      "batchDelete": "Eliminar seleccionados",
+      "batchDeleteConfirm": "¿Está seguro de que desea eliminar {{count}} proxies?",
+      "batchDeleteSuccess": "Se eliminaron {{count}} proxies"
     },
     "add": "Agregar Proxy",
     "edit": "Editar Proxy",
