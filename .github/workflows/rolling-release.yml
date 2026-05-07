@@ -17,7 +17,6 @@ env:
 
 jobs:
   security-scan:
-    if: github.repository == 'zhom/donutbrowser'
     name: Security Vulnerability Scan
     uses: "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@c51854704019a247608d928f370c98740469d4b5" # v2.3.5
     with:
@@ -33,7 +32,6 @@ jobs:
       actions: read
 
   lint-js:
-    if: github.repository == 'zhom/donutbrowser'
     name: Lint JavaScript/TypeScript
     uses: ./.github/workflows/lint-js.yml
     secrets: inherit
@@ -41,7 +39,6 @@ jobs:
       contents: read
 
   lint-rust:
-    if: github.repository == 'zhom/donutbrowser'
     name: Lint Rust
     uses: ./.github/workflows/lint-rs.yml
     secrets: inherit
@@ -49,7 +46,6 @@ jobs:
       contents: read
 
   codeql:
-    if: github.repository == 'zhom/donutbrowser'
     name: CodeQL
     uses: ./.github/workflows/codeql.yml
     secrets: inherit
@@ -60,7 +56,6 @@ jobs:
       actions: read
 
   spellcheck:
-    if: github.repository == 'zhom/donutbrowser'
     name: Spell Check
     uses: ./.github/workflows/spellcheck.yml
     secrets: inherit
@@ -68,7 +63,6 @@ jobs:
       contents: read
 
   rolling-release:
-    if: github.repository == 'zhom/donutbrowser'
     needs: [security-scan, lint-js, lint-rust, codeql, spellcheck]
     permissions:
       contents: write
@@ -277,7 +271,6 @@ jobs:
           rm -f $RUNNER_TEMP/build_certificate.p12 || true
 
   update-nightly-release:
-    if: github.repository == 'zhom/donutbrowser'
     needs: [rolling-release]
     runs-on: ubuntu-latest
     permissions:
@@ -381,7 +374,6 @@ jobs:
             --prerelease
 
   deploy-website:
-    if: github.repository == 'zhom/donutbrowser'
     needs: [update-nightly-release]
     runs-on: ubuntu-latest
     steps:
@@ -389,7 +381,6 @@ jobs:
         run: curl -fsSL -X POST "${{ secrets.CLOUDFLARE_WEB_DEPLOYMENT_HOOK }}"
 
   notify-discord:
-    if: github.repository == 'zhom/donutbrowser'
     needs: [update-nightly-release]
     runs-on: ubuntu-latest
     steps:

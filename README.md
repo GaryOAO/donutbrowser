@@ -8,22 +8,19 @@
 <br>
 
 <p align="center">
-  <a style="text-decoration: none;" href="https://github.com/zhom/donutbrowser/releases/latest" target="_blank"><img alt="GitHub release" src="https://img.shields.io/github/v/release/zhom/donutbrowser">
+  <a style="text-decoration: none;" href="https://github.com/GaryOAO/donutbrowser/releases/latest" target="_blank"><img alt="GitHub release" src="https://img.shields.io/github/v/release/GaryOAO/donutbrowser">
   </a>
-  <a style="text-decoration: none;" href="https://github.com/zhom/donutbrowser/issues" target="_blank">
+  <a style="text-decoration: none;" href="https://github.com/GaryOAO/donutbrowser/issues" target="_blank">
     <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat" alt="PRs Welcome">
   </a>
-  <a style="text-decoration: none;" href="https://github.com/zhom/donutbrowser/blob/main/LICENSE" target="_blank">
+  <a style="text-decoration: none;" href="https://github.com/GaryOAO/donutbrowser/blob/main/LICENSE" target="_blank">
     <img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License">
   </a>
-  <a href="https://app.fossa.com/projects/git%2Bgithub.com%2Fzhom%2Fdonutbrowser?ref=badge_shield&issueType=security" alt="FOSSA Status">
-    <img src="https://app.fossa.com/api/projects/git%2Bgithub.com%2Fzhom%2Fdonutbrowser.svg?type=shield&issueType=security" alt="FOSSA Security Status"/>
+  <a style="text-decoration: none;" href="https://github.com/GaryOAO/donutbrowser/network/members" target="_blank">
+    <img src="https://img.shields.io/github/forks/GaryOAO/donutbrowser?style=social" alt="GitHub forks">
   </a>
-  <a style="text-decoration: none;" href="https://github.com/zhom/donutbrowser/network/members" target="_blank">
-    <img src="https://img.shields.io/github/forks/zhom/donutbrowser?style=social" alt="GitHub forks">
-  </a>
-  <a style="text-decoration: none;" href="https://github.com/zhom/donutbrowser/releases" target="_blank">
-    <img src="https://img.shields.io/github/downloads/zhom/donutbrowser/total" alt="Downloads">
+  <a style="text-decoration: none;" href="https://github.com/GaryOAO/donutbrowser/releases" target="_blank">
+    <img src="https://img.shields.io/github/downloads/GaryOAO/donutbrowser/total" alt="Downloads">
   </a>
 </p>
 
@@ -34,6 +31,9 @@
 - **Unlimited browser profiles** — each fully isolated with its own fingerprint, cookies, extensions, and data
 - **Chromium & Firefox engines** — Chromium powered by [Wayfern](https://wayfern.com), Firefox powered by [Camoufox](https://camoufox.com), both with advanced fingerprint spoofing
 - **Proxy support** — HTTP, HTTPS, SOCKS4, SOCKS5 per profile, with dynamic proxy URLs
+- **Subscription proxy pool** — import Clash/V2Ray subscription URLs, auto-parse nodes (SS, SSR, VMess, VLESS, Trojan, Hysteria), bind nodes directly to profiles
+- **Mihomo gateway** — built-in [Mihomo](https://github.com/MetaCubeX/mihomo) (Clash Meta) integration for complex protocols that need local gateway translation
+- **Batch proxy management** — select, delete, and manage proxies in bulk
 - **VPN support** — WireGuard configs per profile
 - **Local API & MCP** — REST API and [Model Context Protocol](https://modelcontextprotocol.io) server for integration with Claude, automation tools, and custom workflows
 - **Profile groups** — organize profiles and apply bulk settings
@@ -51,7 +51,7 @@
 
 | | Apple Silicon | Intel |
 |---|---|---|
-| **DMG** | [Download](https://github.com/zhom/donutbrowser/releases/download/v0.22.7/Donut_0.22.7_aarch64.dmg) | [Download](https://github.com/zhom/donutbrowser/releases/download/v0.22.7/Donut_0.22.7_x64.dmg) |
+| **DMG** | [Download](https://github.com/GaryOAO/donutbrowser/releases/download/v0.22.7/Donut_0.22.7_aarch64.dmg) | [Download](https://github.com/GaryOAO/donutbrowser/releases/download/v0.22.7/Donut_0.22.7_x64.dmg) |
 
 Or install via Homebrew:
 
@@ -61,15 +61,15 @@ brew install --cask donut
 
 ### Windows
 
-[Download Windows Installer (x64)](https://github.com/zhom/donutbrowser/releases/download/v0.22.7/Donut_0.22.7_x64-setup.exe) · [Portable (x64)](https://github.com/zhom/donutbrowser/releases/download/v0.22.7/Donut_0.22.7_x64-portable.zip)
+[Download Windows Installer (x64)](https://github.com/GaryOAO/donutbrowser/releases/download/v0.22.7/Donut_0.22.7_x64-setup.exe) · [Portable (x64)](https://github.com/GaryOAO/donutbrowser/releases/download/v0.22.7/Donut_0.22.7_x64-portable.zip)
 
 ### Linux
 
 | Format | x86_64 | ARM64 |
 |---|---|---|
-| **deb** | [Download](https://github.com/zhom/donutbrowser/releases/download/v0.22.7/Donut_0.22.7_amd64.deb) | [Download](https://github.com/zhom/donutbrowser/releases/download/v0.22.7/Donut_0.22.7_arm64.deb) |
-| **rpm** | [Download](https://github.com/zhom/donutbrowser/releases/download/v0.22.7/Donut-0.22.7-1.x86_64.rpm) | [Download](https://github.com/zhom/donutbrowser/releases/download/v0.22.7/Donut-0.22.7-1.aarch64.rpm) |
-| **AppImage** | [Download](https://github.com/zhom/donutbrowser/releases/download/v0.22.7/Donut_0.22.7_amd64.AppImage) | [Download](https://github.com/zhom/donutbrowser/releases/download/v0.22.7/Donut_0.22.7_aarch64.AppImage) |
+| **deb** | [Download](https://github.com/GaryOAO/donutbrowser/releases/download/v0.22.7/Donut_0.22.7_amd64.deb) | [Download](https://github.com/GaryOAO/donutbrowser/releases/download/v0.22.7/Donut_0.22.7_arm64.deb) |
+| **rpm** | [Download](https://github.com/GaryOAO/donutbrowser/releases/download/v0.22.7/Donut-0.22.7-1.x86_64.rpm) | [Download](https://github.com/GaryOAO/donutbrowser/releases/download/v0.22.7/Donut-0.22.7-1.aarch64.rpm) |
+| **AppImage** | [Download](https://github.com/GaryOAO/donutbrowser/releases/download/v0.22.7/Donut_0.22.7_amd64.AppImage) | [Download](https://github.com/GaryOAO/donutbrowser/releases/download/v0.22.7/Donut_0.22.7_aarch64.AppImage) |
 <!-- install-links-end -->
 
 Or install via package manager:
@@ -94,7 +94,7 @@ If that gives an EGL display error, try adding `WEBKIT_DISABLE_DMABUF_RENDERER=1
 ### Nix
 
 ```bash
-nix run github:zhom/donutbrowser#release-start
+nix run github:GaryOAO/donutbrowser#release-start
 ```
 
 ## Self-Hosting Sync
@@ -107,75 +107,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Community
 
-- **Issues**: [GitHub Issues](https://github.com/zhom/donutbrowser/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/zhom/donutbrowser/discussions)
+- **Issues**: [GitHub Issues](https://github.com/GaryOAO/donutbrowser/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/GaryOAO/donutbrowser/discussions)
 
-## Star History
+## Acknowledgments
 
-<a href="https://www.star-history.com/?repos=zhom%2Fdonutbrowser&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=zhom/donutbrowser&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=zhom/donutbrowser&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=zhom/donutbrowser&type=date&legend=top-left" />
- </picture>
-</a>
-
-## Contributors
-
-<!-- readme: collaborators,contributors -start -->
-<table>
-	<tbody>
-		<tr>
-            <td align="center">
-                <a href="https://github.com/zhom">
-                    <img src="https://avatars.githubusercontent.com/u/2717306?v=4" width="100;" alt="zhom"/>
-                    <br />
-                    <sub><b>zhom</b></sub>
-                </a>
-            </td>
-            <td align="center">
-                <a href="https://github.com/HassiyYT">
-                    <img src="https://avatars.githubusercontent.com/u/81773493?v=4" width="100;" alt="HassiyYT"/>
-                    <br />
-                    <sub><b>Hassiy</b></sub>
-                </a>
-            </td>
-            <td align="center">
-                <a href="https://github.com/yb403">
-                    <img src="https://avatars.githubusercontent.com/u/87396571?v=4" width="100;" alt="yb403"/>
-                    <br />
-                    <sub><b>yb403</b></sub>
-                </a>
-            </td>
-            <td align="center">
-                <a href="https://github.com/drunkod">
-                    <img src="https://avatars.githubusercontent.com/u/9677471?v=4" width="100;" alt="drunkod"/>
-                    <br />
-                    <sub><b>drunkod</b></sub>
-                </a>
-            </td>
-            <td align="center">
-                <a href="https://github.com/JorySeverijnse">
-                    <img src="https://avatars.githubusercontent.com/u/117462355?v=4" width="100;" alt="JorySeverijnse"/>
-                    <br />
-                    <sub><b>Jory Severijnse</b></sub>
-                </a>
-            </td>
-            <td align="center">
-                <a href="https://github.com/ThiagoMafra-Integrare">
-                    <img src="https://avatars.githubusercontent.com/u/222241596?v=4" width="100;" alt="ThiagoMafra-Integrare"/>
-                    <br />
-                    <sub><b>Thiago Mafra</b></sub>
-                </a>
-            </td>
-		</tr>
-	<tbody>
-</table>
-<!-- readme: collaborators,contributors -end -->
-
-## Contact
-
-Have an urgent question or want to report a security vulnerability? Send an email to [contact@donutbrowser.com](mailto:contact@donutbrowser.com).
+This project is a fork of [Donut Browser](https://github.com/zhom/donutbrowser) by [zhom](https://github.com/zhom).
 
 ## License
 
