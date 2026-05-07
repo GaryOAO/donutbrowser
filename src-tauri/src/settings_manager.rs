@@ -23,6 +23,25 @@ impl Default for TableSortingSettings {
   }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct ClashBackendSettings {
+  #[serde(default)]
+  pub base_url: Option<String>,
+  #[serde(default)]
+  pub secret: Option<String>,
+  #[serde(default)]
+  pub default_policy_group: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub enum ProxyBackend {
+  #[serde(rename = "local")]
+  #[default]
+  Local,
+  #[serde(rename = "clash")]
+  Clash,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppSettings {
   #[serde(default)]
@@ -57,6 +76,10 @@ pub struct AppSettings {
   pub window_resize_warning_dismissed: bool,
   #[serde(default)]
   pub disable_auto_updates: bool,
+  #[serde(default)]
+  pub proxy_backend: ProxyBackend,
+  #[serde(default)]
+  pub clash_backend: ClashBackendSettings,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -92,6 +115,8 @@ impl Default for AppSettings {
       language: None,
       window_resize_warning_dismissed: false,
       disable_auto_updates: false,
+      proxy_backend: ProxyBackend::Local,
+      clash_backend: ClashBackendSettings::default(),
     }
   }
 }
@@ -1070,6 +1095,8 @@ mod tests {
       language: None,
       window_resize_warning_dismissed: false,
       disable_auto_updates: false,
+      proxy_backend: ProxyBackend::Local,
+      clash_backend: ClashBackendSettings::default(),
     };
 
     let save_result = manager.save_settings(&test_settings);

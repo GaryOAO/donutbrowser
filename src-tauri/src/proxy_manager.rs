@@ -12,6 +12,42 @@ use crate::browser::ProxySettings;
 use crate::events;
 use crate::ip_utils;
 
+#[allow(dead_code)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ProxyProviderKind {
+  Local,
+  Clash,
+}
+
+#[allow(dead_code)]
+pub trait ProxyProvider: Send + Sync {
+  fn kind(&self) -> ProxyProviderKind;
+}
+
+#[allow(dead_code)]
+pub struct LocalProxyProvider;
+impl ProxyProvider for LocalProxyProvider {
+  fn kind(&self) -> ProxyProviderKind {
+    ProxyProviderKind::Local
+  }
+}
+
+#[allow(dead_code)]
+pub struct ClashProxyProvider;
+impl ProxyProvider for ClashProxyProvider {
+  fn kind(&self) -> ProxyProviderKind {
+    ProxyProviderKind::Clash
+  }
+}
+
+#[allow(dead_code)]
+pub fn active_proxy_provider() -> Box<dyn ProxyProvider> {
+  let settings = crate::settings_manager::SettingsManager::instance().load_settings();
+  match settings.map(|s| s.proxy_backend) {
+    Ok(crate::settings_manager::ProxyBackend::Clash) => Box::new(ClashProxyProvider),
+    _ => Box::new(LocalProxyProvider),
+  }
+}
 // Export data format for JSON export
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProxyExportData {
