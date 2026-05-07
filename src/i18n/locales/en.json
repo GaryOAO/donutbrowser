@@ -482,6 +482,15 @@
       "continueButton": "Continue",
       "doneButton": "Done",
       "failed": "Failed to import proxies"
+    },
+    "assignment": {
+      "tabStoredProxies": "Proxies",
+      "tabSubscriptionNodes": "Subscription Nodes",
+      "selectNode": "Select this node",
+      "removeProxy": "Remove Proxy",
+      "currentlyBound": "Currently bound",
+      "noSubscriptions": "No subscriptions. Add one in Proxies & VPNs.",
+      "loadingNodes": "Loading nodes..."
     }
   },
   "groups": {

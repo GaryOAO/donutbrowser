@@ -373,8 +373,8 @@
       "deleteTitle": "Excluir proxy",
       "deleteDescription": "Esta ação não pode ser desfeita. O proxy \"{{name}}\" será excluído permanentemente.",
       "title": "Proxies e VPNs",
-"tabSubscriptions": "Assinaturas",
-"selectAll": "Selecionar tudo",
+      "tabSubscriptions": "Assinaturas",
+      "selectAll": "Selecionar tudo",
       "selectedCount": "{{count}} selecionado(s)",
       "batchDelete": "Excluir selecionados",
       "batchDeleteConfirm": "Tem certeza que deseja excluir {{count}} proxies?",
@@ -482,6 +482,15 @@
       "continueButton": "Continuar",
       "doneButton": "Concluído",
       "failed": "Falha ao importar proxies"
+    },
+    "assignment": {
+      "tabStoredProxies": "Proxies",
+      "tabSubscriptionNodes": "Nós de assinatura",
+      "selectNode": "Selecionar este nó",
+      "removeProxy": "Remover proxy",
+      "currentlyBound": "Atualmente vinculado",
+      "noSubscriptions": "Sem assinaturas. Adicione uma em Proxies e VPNs.",
+      "loadingNodes": "Carregando nós..."
     }
   },
   "groups": {

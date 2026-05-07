@@ -373,8 +373,8 @@
       "deleteTitle": "Удалить прокси",
       "deleteDescription": "Это действие нельзя отменить. Прокси «{{name}}» будет удален навсегда.",
       "title": "Прокси и VPN",
-"tabSubscriptions": "Подписки",
-"selectAll": "Выбрать все",
+      "tabSubscriptions": "Подписки",
+      "selectAll": "Выбрать все",
       "selectedCount": "Выбрано: {{count}}",
       "batchDelete": "Удалить выбранные",
       "batchDeleteConfirm": "Вы уверены, что хотите удалить {{count}} прокси?",
@@ -482,6 +482,15 @@
       "continueButton": "Продолжить",
       "doneButton": "Готово",
       "failed": "Не удалось импортировать прокси"
+    },
+    "assignment": {
+      "tabStoredProxies": "Прокси",
+      "tabSubscriptionNodes": "Узлы подписки",
+      "selectNode": "Выбрать этот узел",
+      "removeProxy": "Убрать прокси",
+      "currentlyBound": "Текущая привязка",
+      "noSubscriptions": "Нет подписок. Добавьте в разделе Прокси и VPN.",
+      "loadingNodes": "Загрузка узлов..."
     }
   },
   "groups": {
