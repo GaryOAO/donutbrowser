@@ -14,18 +14,18 @@ const baseState = {
   status: "idle",
 };
 
-test("状态切换：toggleState 会翻转 enabled", () => {
+test("toggleState flips enabled", () => {
   const next = toggleState(baseState);
   assert.equal(next.enabled, true);
 });
 
-test("错误提示：applyError 会写入错误并标记 failed", () => {
-  const next = applyError(baseState, "节点切换失败");
-  assert.equal(next.error, "节点切换失败");
+test("applyError stores the error and marks failed", () => {
+  const next = applyError(baseState, "node switch failed");
+  assert.equal(next.error, "node switch failed");
   assert.equal(next.status, "failed");
 });
 
-test("批量任务进度：updateBatchProgress 正确更新百分比与状态", () => {
+test("updateBatchProgress updates percentage and status", () => {
   const running = updateBatchProgress(baseState, 25, 100);
   assert.equal(running.batchProgress, 25);
   assert.equal(running.status, "running");
@@ -33,4 +33,18 @@ test("批量任务进度：updateBatchProgress 正确更新百分比与状态", 
   const done = updateBatchProgress(baseState, 100, 100);
   assert.equal(done.batchProgress, 100);
   assert.equal(done.status, "done");
+});
+
+test("updateBatchProgress clamps invalid values", () => {
+  const negative = updateBatchProgress(baseState, -10, 100);
+  assert.equal(negative.batchProgress, 0);
+  assert.equal(negative.status, "running");
+
+  const overflow = updateBatchProgress(baseState, 120, 100);
+  assert.equal(overflow.batchProgress, 100);
+  assert.equal(overflow.status, "done");
+
+  const zeroTotal = updateBatchProgress(baseState, 1, 0);
+  assert.equal(zeroTotal.batchProgress, 100);
+  assert.equal(zeroTotal.status, "done");
 });

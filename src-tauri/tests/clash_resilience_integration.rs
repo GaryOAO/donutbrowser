@@ -116,6 +116,23 @@ impl ProxyOrchestrator {
 
     result
   }
+
+  fn try_recovery_probe(&mut self, api: &mut MockClashApi, node: &str) -> SelectOutcome {
+    let result = api.switch_node(node);
+    match result {
+      SelectOutcome::Success => {
+        self.breaker.on_success();
+        if !self.breaker.open {
+          self.mode = RoutingMode::Clash;
+        }
+      }
+      SelectOutcome::Failed => {
+        self.breaker.on_failure();
+        self.mode = RoutingMode::Direct;
+      }
+    }
+    result
+  }
 }
 
 #[test]
@@ -133,10 +150,16 @@ fn node_switch_success_and_failure_paths() {
   let mut api = MockClashApi::new(true, vec![SelectOutcome::Success, SelectOutcome::Failed]);
   let mut orchestrator = ProxyOrchestrator::new();
 
-  assert_eq!(orchestrator.try_switch_node(&mut api, "hk-1"), SelectOutcome::Success);
+  assert_eq!(
+    orchestrator.try_switch_node(&mut api, "hk-1"),
+    SelectOutcome::Success
+  );
   assert_eq!(orchestrator.mode, RoutingMode::Clash);
 
-  assert_eq!(orchestrator.try_switch_node(&mut api, "sg-2"), SelectOutcome::Failed);
+  assert_eq!(
+    orchestrator.try_switch_node(&mut api, "sg-2"),
+    SelectOutcome::Failed
+  );
   assert_eq!(orchestrator.mode, RoutingMode::Clash);
 }
 
@@ -154,17 +177,34 @@ fn circuit_breaker_trip_and_recovery_strategy() {
   );
   let mut orchestrator = ProxyOrchestrator::new();
 
-  assert_eq!(orchestrator.try_switch_node(&mut api, "n1"), SelectOutcome::Failed);
-  assert_eq!(orchestrator.try_switch_node(&mut api, "n2"), SelectOutcome::Failed);
+  assert_eq!(
+    orchestrator.try_switch_node(&mut api, "n1"),
+    SelectOutcome::Failed
+  );
+  assert_eq!(
+    orchestrator.try_switch_node(&mut api, "n2"),
+    SelectOutcome::Failed
+  );
   assert!(!orchestrator.breaker.open);
 
-  assert_eq!(orchestrator.try_switch_node(&mut api, "n3"), SelectOutcome::Failed);
+  assert_eq!(
+    orchestrator.try_switch_node(&mut api, "n3"),
+    SelectOutcome::Failed
+  );
   assert!(orchestrator.breaker.open);
   assert_eq!(orchestrator.mode, RoutingMode::Direct);
 
-  orchestrator.breaker.open = false;
-  assert_eq!(orchestrator.try_switch_node(&mut api, "recover-1"), SelectOutcome::Success);
-  orchestrator.breaker.open = true;
-  assert_eq!(orchestrator.try_switch_node(&mut api, "recover-2"), SelectOutcome::Success);
+  assert_eq!(
+    orchestrator.try_recovery_probe(&mut api, "recover-1"),
+    SelectOutcome::Success
+  );
+  assert!(orchestrator.breaker.open);
+  assert_eq!(orchestrator.mode, RoutingMode::Direct);
+
+  assert_eq!(
+    orchestrator.try_recovery_probe(&mut api, "recover-2"),
+    SelectOutcome::Success
+  );
   assert!(!orchestrator.breaker.open);
+  assert_eq!(orchestrator.mode, RoutingMode::Clash);
 }

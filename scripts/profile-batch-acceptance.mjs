@@ -5,20 +5,33 @@ import { performance } from "node:perf_hooks";
 const TOTAL_PROFILES = 100;
 const FAILURE_RATE = Number(process.env.FAILURE_RATE ?? "0.08");
 const RECOVERY_SUCCESS_RATE = Number(process.env.RECOVERY_SUCCESS_RATE ?? "0.7");
+const MIN_SUCCESS_RATE = Number(process.env.MIN_SUCCESS_RATE ?? "95");
+const MIN_RECOVERY_RATE = Number(process.env.MIN_RECOVERY_RATE ?? "50");
+const SEED = Number(process.env.SEED ?? "1337");
+
+function seededRandom(seed) {
+  let state = seed >>> 0;
+  return () => {
+    state = (1664525 * state + 1013904223) >>> 0;
+    return state / 0x100000000;
+  };
+}
+
+const random = seededRandom(SEED);
 
 function randomDurationMs() {
-  return 300 + Math.floor(Math.random() * 900);
+  return 300 + Math.floor(random() * 900);
 }
 
 async function simulateLaunch() {
   const duration = randomDurationMs();
   await new Promise((resolve) => setTimeout(resolve, Math.min(duration, 10)));
-  return { duration, success: Math.random() > FAILURE_RATE };
+  return { duration, success: random() > FAILURE_RATE };
 }
 
 async function simulateRecovery() {
   await new Promise((resolve) => setTimeout(resolve, 5));
-  return Math.random() < RECOVERY_SUCCESS_RATE;
+  return random() < RECOVERY_SUCCESS_RATE;
 }
 
 async function main() {
@@ -49,14 +62,22 @@ async function main() {
   const successRate = (successCount / TOTAL_PROFILES) * 100;
   const recoveryRate = failedCount === 0 ? 100 : (recoveredCount / failedCount) * 100;
 
-  console.log("=== Donut Browser 批量启动验收报告 ===");
-  console.log(`Profiles 总数: ${TOTAL_PROFILES}`);
-  console.log(`成功数: ${successCount}`);
-  console.log(`失败数: ${failedCount}`);
-  console.log(`成功率: ${successRate.toFixed(2)}%`);
-  console.log(`平均启动时长: ${avg.toFixed(2)} ms`);
-  console.log(`失败恢复率: ${recoveryRate.toFixed(2)}%`);
-  console.log(`总耗时(测试运行): ${(t1 - t0).toFixed(2)} ms`);
+  console.log("=== Donut Browser batch launch acceptance report ===");
+  console.log(`Seed: ${SEED}`);
+  console.log(`Profiles: ${TOTAL_PROFILES}`);
+  console.log(`Succeeded: ${successCount}`);
+  console.log(`Failed before recovery: ${failedCount}`);
+  console.log(`Success rate: ${successRate.toFixed(2)}%`);
+  console.log(`Average launch duration: ${avg.toFixed(2)} ms`);
+  console.log(`Recovery rate: ${recoveryRate.toFixed(2)}%`);
+  console.log(`Test runtime: ${(t1 - t0).toFixed(2)} ms`);
+
+  if (successRate < MIN_SUCCESS_RATE || recoveryRate < MIN_RECOVERY_RATE) {
+    console.error(
+      `Acceptance failed: expected success >= ${MIN_SUCCESS_RATE}% and recovery >= ${MIN_RECOVERY_RATE}%`,
+    );
+    process.exitCode = 1;
+  }
 }
 
 main();
