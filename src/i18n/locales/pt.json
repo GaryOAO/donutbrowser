@@ -1629,5 +1629,16 @@
     "result": "Result",
     "latency": "Latency",
     "message": "Message"
+  },
+  "gateway": {
+    "title": "Gateway de Proxy",
+    "description": "Necessário para os protocolos VLESS, VMess, Trojan, Hysteria, TUIC",
+    "notInstalled": "Gateway não instalado",
+    "installed": "Gateway instalado",
+    "install": "Instalar Gateway",
+    "installing": "Instalando...",
+    "installSuccess": "Gateway instalado com sucesso",
+    "installError": "Falha ao instalar o gateway",
+    "runningCount": "{{count}} instâncias em execução"
   }
 }

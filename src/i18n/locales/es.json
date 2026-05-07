@@ -1629,5 +1629,16 @@
     "result": "Result",
     "latency": "Latency",
     "message": "Message"
+  },
+  "gateway": {
+    "title": "Puerta de Enlace Proxy",
+    "description": "Requerido para los protocolos VLESS, VMess, Trojan, Hysteria, TUIC",
+    "notInstalled": "Puerta de enlace no instalada",
+    "installed": "Puerta de enlace instalada",
+    "install": "Instalar Puerta de Enlace",
+    "installing": "Instalando...",
+    "installSuccess": "Puerta de enlace instalada correctamente",
+    "installError": "Error al instalar la puerta de enlace",
+    "runningCount": "{{count}} instancias en ejecución"
   }
 }

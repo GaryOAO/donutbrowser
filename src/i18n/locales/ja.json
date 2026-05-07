@@ -1629,5 +1629,16 @@
     "result": "Result",
     "latency": "Latency",
     "message": "Message"
+  },
+  "gateway": {
+    "title": "プロキシゲートウェイ",
+    "description": "VLESS、VMess、Trojan、Hysteria、TUICプロトコルに必要です",
+    "notInstalled": "ゲートウェイがインストールされていません",
+    "installed": "ゲートウェイがインストールされています",
+    "install": "ゲートウェイをインストール",
+    "installing": "インストール中...",
+    "installSuccess": "ゲートウェイのインストールに成功しました",
+    "installError": "ゲートウェイのインストールに失敗しました",
+    "runningCount": "{{count}} 個のインスタンスが実行中"
   }
 }

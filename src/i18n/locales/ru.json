@@ -1629,5 +1629,16 @@
     "result": "Result",
     "latency": "Latency",
     "message": "Message"
+  },
+  "gateway": {
+    "title": "Прокси-шлюз",
+    "description": "Необходимо для протоколов VLESS, VMess, Trojan, Hysteria, TUIC",
+    "notInstalled": "Шлюз не установлен",
+    "installed": "Шлюз установлен",
+    "install": "Установить шлюз",
+    "installing": "Установка...",
+    "installSuccess": "Шлюз успешно установлен",
+    "installError": "Не удалось установить шлюз",
+    "runningCount": "Запущено {{count}} экземпляров"
   }
 }
