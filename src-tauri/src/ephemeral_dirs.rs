@@ -259,6 +259,7 @@ mod tests {
       browser: "camoufox".to_string(),
       version: "1.0".to_string(),
       proxy_id: None,
+      proxy_binding_mode: crate::profile::ProxyBindingMode::FixedNode,
       vpn_id: None,
       launch_hook: None,
       process_id: None,

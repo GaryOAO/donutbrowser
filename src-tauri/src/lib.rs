@@ -1198,6 +1198,7 @@ async fn generate_sample_fingerprint(
     version: version.clone(),
     process_id: None,
     proxy_id: None,
+    proxy_binding_mode: crate::profile::ProxyBindingMode::FixedNode,
     vpn_id: None,
     launch_hook: None,
     last_launch: None,
