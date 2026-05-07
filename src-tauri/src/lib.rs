@@ -252,6 +252,14 @@ async fn delete_stored_proxy(app_handle: tauri::AppHandle, proxy_id: String) -> 
     .map_err(|e| format!("Failed to delete stored proxy: {e}"))
 }
 
+#[tauri::command]
+async fn batch_delete_stored_proxies(
+  proxy_ids: Vec<String>,
+  app_handle: tauri::AppHandle,
+) -> Result<usize, String> {
+  crate::proxy_manager::PROXY_MANAGER.batch_delete_stored_proxies(proxy_ids, &app_handle)
+}
+
 #[derive(Deserialize)]
 struct ClashCommandInput {
   #[serde(default, alias = "baseUrl")]
@@ -2069,6 +2077,7 @@ pub fn run() {
       get_stored_proxies,
       update_stored_proxy,
       delete_stored_proxy,
+      batch_delete_stored_proxies,
       check_proxy_validity,
       clash_list_groups,
       clash_switch_proxy,

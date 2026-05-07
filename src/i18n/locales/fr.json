@@ -372,7 +372,12 @@
       "deleteFailed": "Échec de la suppression du proxy",
       "deleteTitle": "Supprimer le proxy",
       "deleteDescription": "Cette action est irréversible. Le proxy « {{name}} » sera supprimé définitivement.",
-      "title": "Proxys et VPN"
+      "title": "Proxys et VPN",
+      "selectAll": "Tout sélectionner",
+      "selectedCount": "{{count}} sélectionné(s)",
+      "batchDelete": "Supprimer la sélection",
+      "batchDeleteConfirm": "Êtes-vous sûr de vouloir supprimer {{count}} proxies ?",
+      "batchDeleteSuccess": "{{count}} proxies supprimés"
     },
     "add": "Ajouter un proxy",
     "edit": "Modifier le proxy",

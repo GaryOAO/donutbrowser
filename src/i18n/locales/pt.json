@@ -372,7 +372,12 @@
       "deleteFailed": "Falha ao excluir proxy",
       "deleteTitle": "Excluir proxy",
       "deleteDescription": "Esta ação não pode ser desfeita. O proxy \"{{name}}\" será excluído permanentemente.",
-      "title": "Proxies e VPNs"
+      "title": "Proxies e VPNs",
+      "selectAll": "Selecionar tudo",
+      "selectedCount": "{{count}} selecionado(s)",
+      "batchDelete": "Excluir selecionados",
+      "batchDeleteConfirm": "Tem certeza que deseja excluir {{count}} proxies?",
+      "batchDeleteSuccess": "{{count}} proxies excluídos"
     },
     "add": "Adicionar Proxy",
     "edit": "Editar Proxy",

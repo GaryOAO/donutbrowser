@@ -952,6 +952,20 @@ impl ProxyManager {
     Ok(())
   }
 
+  pub fn batch_delete_stored_proxies(
+    &self,
+    proxy_ids: Vec<String>,
+    app_handle: &tauri::AppHandle,
+  ) -> Result<usize, String> {
+    let mut deleted = 0;
+    for id in &proxy_ids {
+      if self.delete_stored_proxy(app_handle, id).is_ok() {
+        deleted += 1;
+      }
+    }
+    Ok(deleted)
+  }
+
   // Check if a proxy is cloud-managed or cloud-derived (needs fresh credentials)
   pub fn is_cloud_or_derived(&self, proxy_id: &str) -> bool {
     let stored_proxies = self.stored_proxies.lock().unwrap();

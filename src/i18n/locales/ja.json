@@ -372,7 +372,12 @@
       "deleteFailed": "プロキシの削除に失敗しました",
       "deleteTitle": "プロキシを削除",
       "deleteDescription": "この操作は取り消せません。プロキシ「{{name}}」は完全に削除されます。",
-      "title": "プロキシと VPN"
+      "title": "プロキシと VPN",
+      "selectAll": "すべて選択",
+      "selectedCount": "{{count}} 件選択中",
+      "batchDelete": "選択項目を削除",
+      "batchDeleteConfirm": "{{count}} 件のプロキシを削除してもよろしいですか？",
+      "batchDeleteSuccess": "{{count}} 件のプロキシを削除しました"
     },
     "add": "プロキシを追加",
     "edit": "プロキシを編集",
