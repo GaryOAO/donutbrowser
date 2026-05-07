@@ -4,7 +4,7 @@ use crate::camoufox_manager::CamoufoxConfig;
 use crate::cloud_auth::CLOUD_AUTH;
 use crate::downloaded_browsers_registry::DownloadedBrowsersRegistry;
 use crate::events;
-use crate::profile::types::{get_host_os, BrowserProfile, SyncMode};
+use crate::profile::types::{get_host_os, BrowserProfile, ProxyBindingMode, SyncMode};
 use crate::proxy_manager::PROXY_MANAGER;
 use crate::wayfern_manager::WayfernConfig;
 use std::fs::{self, create_dir_all};
@@ -164,6 +164,7 @@ impl ProfileManager {
           browser: browser.to_string(),
           version: version.to_string(),
           proxy_id: proxy_id.clone(),
+          proxy_binding_mode: ProxyBindingMode::FixedNode,
           vpn_id: None,
           launch_hook: launch_hook.clone(),
           process_id: None,
@@ -265,6 +266,7 @@ impl ProfileManager {
           browser: browser.to_string(),
           version: version.to_string(),
           proxy_id: proxy_id.clone(),
+          proxy_binding_mode: ProxyBindingMode::FixedNode,
           vpn_id: None,
           launch_hook: launch_hook.clone(),
           process_id: None,
@@ -320,6 +322,7 @@ impl ProfileManager {
       browser: browser.to_string(),
       version: version.to_string(),
       proxy_id: proxy_id.clone(),
+      proxy_binding_mode: ProxyBindingMode::FixedNode,
       vpn_id: vpn_id.clone(),
       launch_hook,
       process_id: None,
@@ -967,6 +970,7 @@ impl ProfileManager {
       browser: source.browser,
       version: source.version,
       proxy_id: source.proxy_id,
+      proxy_binding_mode: source.proxy_binding_mode,
       vpn_id: source.vpn_id,
       launch_hook: source.launch_hook,
       process_id: None,

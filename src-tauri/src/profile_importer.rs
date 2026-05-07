@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use crate::camoufox_manager::CamoufoxConfig;
 use crate::downloaded_browsers_registry::DownloadedBrowsersRegistry;
-use crate::profile::types::{get_host_os, BrowserProfile, SyncMode};
+use crate::profile::types::{get_host_os, BrowserProfile, ProxyBindingMode, SyncMode};
 use crate::profile::ProfileManager;
 use crate::proxy_manager::PROXY_MANAGER;
 use crate::wayfern_manager::WayfernConfig;
@@ -564,6 +564,7 @@ impl ProfileImporter {
           browser: mapped.to_string(),
           version: version.clone(),
           proxy_id: proxy_id.clone(),
+          proxy_binding_mode: ProxyBindingMode::FixedNode,
           vpn_id: None,
           launch_hook: None,
           process_id: None,
@@ -644,6 +645,7 @@ impl ProfileImporter {
           browser: mapped.to_string(),
           version: version.clone(),
           proxy_id: proxy_id.clone(),
+          proxy_binding_mode: ProxyBindingMode::FixedNode,
           vpn_id: None,
           launch_hook: None,
           process_id: None,
@@ -695,6 +697,7 @@ impl ProfileImporter {
       browser: mapped.to_string(),
       version,
       proxy_id,
+      proxy_binding_mode: ProxyBindingMode::FixedNode,
       vpn_id: None,
       launch_hook: None,
       process_id: None,

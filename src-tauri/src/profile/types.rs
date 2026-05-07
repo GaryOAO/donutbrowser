@@ -21,6 +21,15 @@ pub enum SyncMode {
   Encrypted,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ProxyBindingMode {
+  #[default]
+  FixedNode,
+  SessionRandom,
+  RotatePerLaunch,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct BrowserProfile {
   pub id: uuid::Uuid,
@@ -29,6 +38,8 @@ pub struct BrowserProfile {
   pub version: String,
   #[serde(default)]
   pub proxy_id: Option<String>, // Reference to stored proxy
+  #[serde(default)]
+  pub proxy_binding_mode: ProxyBindingMode,
   #[serde(default)]
   pub vpn_id: Option<String>, // Reference to stored VPN config
   #[serde(default)]
