@@ -372,7 +372,14 @@
       "deleteFailed": "プロキシの削除に失敗しました",
       "deleteTitle": "プロキシを削除",
       "deleteDescription": "この操作は取り消せません。プロキシ「{{name}}」は完全に削除されます。",
-      "title": "プロキシと VPN"
+      "title": "プロキシと VPN",
+      "tabSubscriptions": "サブスクリプション",
+      "loadingSubscriptions": "サブスクリプションを読み込み中...",
+      "noSubscriptions": "サブスクリプションがまだありません。",
+      "noNodes": "利用可能なノードがありません。",
+      "protocol": "プロトコル",
+      "serverPort": "サーバー:ポート",
+      "status": "状態"
     },
     "add": "プロキシを追加",
     "edit": "プロキシを編集",
@@ -476,6 +483,15 @@
       "continueButton": "続ける",
       "doneButton": "完了",
       "failed": "プロキシのインポートに失敗しました"
+    },
+    "assignment": {
+      "tabStoredProxies": "プロキシ",
+      "tabSubscriptionNodes": "サブスクリプションノード",
+      "selectNode": "このノードを選択",
+      "removeProxy": "プロキシを削除",
+      "currentlyBound": "現在バインド中",
+      "noSubscriptions": "サブスクリプションがありません。プロキシとVPNで追加してください。",
+      "loadingNodes": "ノードを読み込み中..."
     }
   },
   "groups": {
@@ -1629,5 +1645,11 @@
     "result": "Result",
     "latency": "Latency",
     "message": "Message"
+  },
+  "subscriptionPool": {
+    "bound": "バインド済み",
+    "available": "利用可能",
+    "gatewayRequired": "ゲートウェイ必要",
+    "unavailable": "利用不可"
   }
 }

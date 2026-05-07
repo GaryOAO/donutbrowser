@@ -372,7 +372,14 @@
       "deleteFailed": "Не удалось удалить прокси",
       "deleteTitle": "Удалить прокси",
       "deleteDescription": "Это действие нельзя отменить. Прокси «{{name}}» будет удален навсегда.",
-      "title": "Прокси и VPN"
+      "title": "Прокси и VPN",
+      "tabSubscriptions": "Подписки",
+      "loadingSubscriptions": "Загрузка подписок...",
+      "noSubscriptions": "Подписки ещё не добавлены.",
+      "noNodes": "Нет доступных узлов.",
+      "protocol": "Протокол",
+      "serverPort": "Сервер:Порт",
+      "status": "Статус"
     },
     "add": "Добавить прокси",
     "edit": "Редактировать прокси",
@@ -476,6 +483,15 @@
       "continueButton": "Продолжить",
       "doneButton": "Готово",
       "failed": "Не удалось импортировать прокси"
+    },
+    "assignment": {
+      "tabStoredProxies": "Прокси",
+      "tabSubscriptionNodes": "Узлы подписки",
+      "selectNode": "Выбрать этот узел",
+      "removeProxy": "Убрать прокси",
+      "currentlyBound": "Текущая привязка",
+      "noSubscriptions": "Нет подписок. Добавьте в разделе Прокси и VPN.",
+      "loadingNodes": "Загрузка узлов..."
     }
   },
   "groups": {
@@ -1629,5 +1645,11 @@
     "result": "Result",
     "latency": "Latency",
     "message": "Message"
+  },
+  "subscriptionPool": {
+    "bound": "Привязан",
+    "available": "Доступен",
+    "gatewayRequired": "Требуется шлюз",
+    "unavailable": "Недоступен"
   }
 }

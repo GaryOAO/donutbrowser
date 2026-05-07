@@ -372,7 +372,14 @@
       "deleteFailed": "Falha ao excluir proxy",
       "deleteTitle": "Excluir proxy",
       "deleteDescription": "Esta ação não pode ser desfeita. O proxy \"{{name}}\" será excluído permanentemente.",
-      "title": "Proxies e VPNs"
+      "title": "Proxies e VPNs",
+      "tabSubscriptions": "Assinaturas",
+      "loadingSubscriptions": "Carregando assinaturas...",
+      "noSubscriptions": "Nenhuma assinatura adicionada ainda.",
+      "noNodes": "Nenhum nó disponível.",
+      "protocol": "Protocolo",
+      "serverPort": "Servidor:Porta",
+      "status": "Status"
     },
     "add": "Adicionar Proxy",
     "edit": "Editar Proxy",
@@ -476,6 +483,15 @@
       "continueButton": "Continuar",
       "doneButton": "Concluído",
       "failed": "Falha ao importar proxies"
+    },
+    "assignment": {
+      "tabStoredProxies": "Proxies",
+      "tabSubscriptionNodes": "Nós de assinatura",
+      "selectNode": "Selecionar este nó",
+      "removeProxy": "Remover proxy",
+      "currentlyBound": "Atualmente vinculado",
+      "noSubscriptions": "Sem assinaturas. Adicione uma em Proxies e VPNs.",
+      "loadingNodes": "Carregando nós..."
     }
   },
   "groups": {
@@ -1629,5 +1645,11 @@
     "result": "Result",
     "latency": "Latency",
     "message": "Message"
+  },
+  "subscriptionPool": {
+    "bound": "Vinculado",
+    "available": "Disponível",
+    "gatewayRequired": "Gateway necessário",
+    "unavailable": "Indisponível"
   }
 }

@@ -2,6 +2,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GoPlus } from "react-icons/go";
@@ -40,7 +41,14 @@ import {
 import { useProxyEvents } from "@/hooks/use-proxy-events";
 import { useVpnEvents } from "@/hooks/use-vpn-events";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
-import type { ProxyCheckResult, StoredProxy, VpnConfig } from "@/types";
+import type {
+  BrowserProfile,
+  PoolNode,
+  ProxyCheckResult,
+  StoredProxy,
+  Subscription,
+  VpnConfig,
+} from "@/types";
 import { ProxyCheckButton } from "./proxy-check-button";
 import { RippleButton } from "./ui/ripple";
 import { VpnCheckButton } from "./vpn-check-button";
@@ -147,6 +155,12 @@ export function ProxyManagementDialog({
     Record<string, boolean>
   >({});
 
+  // Subscription pool state
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [poolNodes, setPoolNodes] = useState<PoolNode[]>([]);
+  const [isLoadingSubscriptions, setIsLoadingSubscriptions] = useState(false);
+  const [boundNodeIds, setBoundNodeIds] = useState<Set<string>>(new Set());
+
   const { storedProxies: rawProxies, proxyUsage, isLoading } = useProxyEvents();
   const { vpnConfigs, vpnUsage, isLoading: isLoadingVpns } = useVpnEvents();
 
@@ -206,6 +220,35 @@ export function ProxyManagementDialog({
       unlisten?.();
     };
   }, []);
+
+  // Load subscription pool data when dialog opens
+  useEffect(() => {
+    if (!isOpen) return;
+    const loadSubscriptionData = async () => {
+      setIsLoadingSubscriptions(true);
+      try {
+        const [subs, nodes, profiles] = await Promise.all([
+          invoke<Subscription[]>("list_subscriptions"),
+          invoke<PoolNode[]>("list_pool_nodes"),
+          invoke<BrowserProfile[]>("get_profiles"),
+        ]);
+        setSubscriptions(subs);
+        setPoolNodes(nodes);
+        const bound = new Set<string>();
+        for (const profile of profiles) {
+          if (profile.proxy_source?.type === "SubscriptionNode") {
+            bound.add(profile.proxy_source.id);
+          }
+        }
+        setBoundNodeIds(bound);
+      } catch (_error) {
+        // Subscription pool may not be available yet
+      } finally {
+        setIsLoadingSubscriptions(false);
+      }
+    };
+    void loadSubscriptionData();
+  }, [isOpen]);
 
   // Load cached check results on mount and when proxies change
   useEffect(() => {
@@ -408,6 +451,9 @@ export function ProxyManagementDialog({
                 </TabsTrigger>
                 <TabsTrigger value="vpns" className="flex-1">
                   {t("proxies.management.tabVpns")}
+                </TabsTrigger>
+                <TabsTrigger value="subscriptions" className="flex-1">
+                  {t("proxies.management.tabSubscriptions")}
                 </TabsTrigger>
               </TabsList>
 
@@ -837,6 +883,127 @@ export function ProxyManagementDialog({
                           })}
                         </TableBody>
                       </Table>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="subscriptions" className="mt-4">
+                <div className="space-y-4">
+                  {isLoadingSubscriptions ? (
+                    <div className="text-sm text-muted-foreground">
+                      {t("proxies.management.loadingSubscriptions")}
+                    </div>
+                  ) : subscriptions.length === 0 ? (
+                    <div className="text-sm text-muted-foreground">
+                      {t("proxies.management.noSubscriptions")}
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {subscriptions.map((sub) => {
+                        const nodes = poolNodes.filter(
+                          (n) => n.subscription_id === sub.id,
+                        );
+                        return (
+                          <div key={sub.id}>
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-sm font-semibold">
+                                {sub.name}
+                              </p>
+                            </div>
+                            {nodes.length === 0 ? (
+                              <p className="text-xs text-muted-foreground">
+                                {t("proxies.management.noNodes")}
+                              </p>
+                            ) : (
+                              <div className="border rounded-md overflow-auto max-h-[240px]">
+                                <Table className="min-w-max">
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead>
+                                        {t("common.labels.name")}
+                                      </TableHead>
+                                      <TableHead className="whitespace-nowrap w-px">
+                                        {t("proxies.management.protocol")}
+                                      </TableHead>
+                                      <TableHead className="whitespace-nowrap w-px">
+                                        {t("proxies.management.serverPort")}
+                                      </TableHead>
+                                      <TableHead className="whitespace-nowrap w-px">
+                                        {t("proxies.management.status")}
+                                      </TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {nodes.map((node) => {
+                                      const isBound = boundNodeIds.has(node.id);
+                                      let statusBadge: ReactNode;
+                                      if (isBound) {
+                                        statusBadge = (
+                                          <Badge className="bg-success/10 text-success border-success/30 text-[10px] px-1 py-0 leading-tight">
+                                            {t("subscriptionPool.bound")}
+                                          </Badge>
+                                        );
+                                      } else if (!node.is_supported) {
+                                        statusBadge = (
+                                          <Badge
+                                            variant="outline"
+                                            className="text-warning border-warning/50 text-[10px] px-1 py-0 leading-tight"
+                                          >
+                                            {t(
+                                              "subscriptionPool.gatewayRequired",
+                                            )}
+                                          </Badge>
+                                        );
+                                      } else if (
+                                        node.last_tested_at &&
+                                        node.is_available === false
+                                      ) {
+                                        statusBadge = (
+                                          <Badge
+                                            variant="outline"
+                                            className="text-destructive border-destructive/50 text-[10px] px-1 py-0 leading-tight"
+                                          >
+                                            {t("subscriptionPool.unavailable")}
+                                          </Badge>
+                                        );
+                                      } else {
+                                        statusBadge = (
+                                          <Badge
+                                            variant="secondary"
+                                            className="text-[10px] px-1 py-0 leading-tight"
+                                          >
+                                            {t("subscriptionPool.available")}
+                                          </Badge>
+                                        );
+                                      }
+                                      return (
+                                        <TableRow key={node.id}>
+                                          <TableCell className="font-medium">
+                                            {node.name}
+                                          </TableCell>
+                                          <TableCell>
+                                            <Badge
+                                              variant="outline"
+                                              className="text-[10px] px-1 py-0 leading-tight"
+                                            >
+                                              {node.protocol}
+                                            </Badge>
+                                          </TableCell>
+                                          <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                                            {node.server}:{node.port}
+                                          </TableCell>
+                                          <TableCell>{statusBadge}</TableCell>
+                                        </TableRow>
+                                      );
+                                    })}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

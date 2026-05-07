@@ -84,6 +84,7 @@ import { cn } from "@/lib/utils";
 import type {
   BrowserProfile,
   LocationItem,
+  PoolNode,
   ProxyCheckResult,
   StoredProxy,
   SyncSessionInfo,
@@ -139,6 +140,7 @@ interface TableMeta {
   setOpenProxySelectorFor: React.Dispatch<React.SetStateAction<string | null>>;
   proxyOverrides: Record<string, string | null>;
   storedProxies: StoredProxy[];
+  poolNodes: PoolNode[];
   handleProxySelection: (
     profileId: string,
     proxyId: string | null,
@@ -971,6 +973,7 @@ export function ProfilesDataTable({
 
   const { storedProxies } = useProxyEvents();
   const { vpnConfigs } = useVpnEvents();
+  const [poolNodes, setPoolNodes] = React.useState<PoolNode[]>([]);
   const { user } = useCloudAuth();
   const { isProfileLocked, getLockInfo } = useTeamLocks(user?.id);
 
@@ -1145,6 +1148,20 @@ export function ProfilesDataTable({
     launchingProfiles,
     stoppingProfiles,
   );
+
+  // Load pool nodes for subscription node display
+  React.useEffect(() => {
+    if (!browserState.isClient) return;
+    const loadPoolNodes = async () => {
+      try {
+        const nodes = await invoke<PoolNode[]>("list_pool_nodes");
+        setPoolNodes(nodes);
+      } catch (_error) {
+        // Pool nodes may not be available yet
+      }
+    };
+    void loadPoolNodes();
+  }, [browserState.isClient]);
 
   // Listen for sync status events
   React.useEffect(() => {
@@ -1537,6 +1554,7 @@ export function ProfilesDataTable({
       setOpenProxySelectorFor,
       proxyOverrides,
       storedProxies,
+      poolNodes,
       handleProxySelection,
       checkingProfileId,
       proxyCheckResults,
@@ -1631,6 +1649,7 @@ export function ProfilesDataTable({
       openProxySelectorFor,
       proxyOverrides,
       storedProxies,
+      poolNodes,
       handleProxySelection,
       checkingProfileId,
       proxyCheckResults,
@@ -2252,13 +2271,24 @@ export function ProfilesDataTable({
             ? (meta.vpnConfigs.find((v) => v.id === effectiveVpnId) ?? null)
             : null;
 
-          const hasAssignment = Boolean(effectiveProxy || effectiveVpn);
+          const proxySource = profile.proxy_source;
+          const effectiveNode =
+            proxySource?.type === "SubscriptionNode"
+              ? (meta.poolNodes.find((n) => n.id === proxySource.id) ?? null)
+              : null;
+
+          const hasAssignment = Boolean(
+            effectiveProxy || effectiveVpn || effectiveNode,
+          );
           const displayName = effectiveVpn
             ? effectiveVpn.name
-            : effectiveProxy
-              ? effectiveProxy.name
-              : meta.t("profiles.table.notSelected");
+            : effectiveNode
+              ? effectiveNode.name
+              : effectiveProxy
+                ? effectiveProxy.name
+                : meta.t("profiles.table.notSelected");
           const vpnBadge = effectiveVpn ? "WG" : null;
+          const nodeBadge = effectiveNode ? effectiveNode.protocol : null;
           const tooltipText = hasAssignment ? displayName : null;
           const isSelectorOpen = meta.openProxySelectorFor === profile.id;
           const selectedId = effectiveVpnId ?? effectiveProxyId ?? null;
@@ -2308,6 +2338,14 @@ export function ProfilesDataTable({
                             className="text-[10px] px-1 py-0 leading-tight"
                           >
                             {vpnBadge}
+                          </Badge>
+                        )}
+                        {nodeBadge && (
+                          <Badge
+                            variant="secondary"
+                            className="text-[10px] px-1 py-0 leading-tight"
+                          >
+                            {nodeBadge}
                           </Badge>
                         )}
                         <span

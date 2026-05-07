@@ -372,7 +372,14 @@
       "deleteFailed": "Échec de la suppression du proxy",
       "deleteTitle": "Supprimer le proxy",
       "deleteDescription": "Cette action est irréversible. Le proxy « {{name}} » sera supprimé définitivement.",
-      "title": "Proxys et VPN"
+      "title": "Proxys et VPN",
+      "tabSubscriptions": "Abonnements",
+      "loadingSubscriptions": "Chargement des abonnements...",
+      "noSubscriptions": "Aucun abonnement ajouté pour l'instant.",
+      "noNodes": "Aucun nœud disponible.",
+      "protocol": "Protocole",
+      "serverPort": "Serveur:Port",
+      "status": "Statut"
     },
     "add": "Ajouter un proxy",
     "edit": "Modifier le proxy",
@@ -476,6 +483,15 @@
       "continueButton": "Continuer",
       "doneButton": "Terminé",
       "failed": "Échec de l'import des proxys"
+    },
+    "assignment": {
+      "tabStoredProxies": "Proxies",
+      "tabSubscriptionNodes": "Nœuds d'abonnement",
+      "selectNode": "Sélectionner ce nœud",
+      "removeProxy": "Supprimer le proxy",
+      "currentlyBound": "Actuellement lié",
+      "noSubscriptions": "Aucun abonnement. Ajoutez-en un dans Proxies et VPNs.",
+      "loadingNodes": "Chargement des nœuds..."
     }
   },
   "groups": {
@@ -1629,5 +1645,11 @@
     "result": "Result",
     "latency": "Latency",
     "message": "Message"
+  },
+  "subscriptionPool": {
+    "bound": "Lié",
+    "available": "Disponible",
+    "gatewayRequired": "Passerelle requise",
+    "unavailable": "Indisponible"
   }
 }
