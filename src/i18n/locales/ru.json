@@ -186,7 +186,8 @@
       "syncService": "Аккаунт",
       "integrations": "Интеграции",
       "importProfile": "Импорт профиля",
-      "extensions": "Расширения"
+      "extensions": "Расширения",
+      "operationLogs": "Operation Logs"
     }
   },
   "profiles": {
@@ -1600,5 +1601,19 @@
       "upToDateDescription": "Все версии браузеров актуальны",
       "updateAllFailed": "Не удалось обновить версии браузеров"
     }
+  },
+  "operationLogs": {
+    "title": "Operation Logs",
+    "profileFilter": "Profile",
+    "allProfiles": "All profiles",
+    "timeFilter": "Start time",
+    "refresh": "Refresh",
+    "empty": "No operation logs found",
+    "time": "Time",
+    "profile": "Profile",
+    "action": "Action",
+    "result": "Result",
+    "latency": "Latency",
+    "message": "Message"
   }
 }

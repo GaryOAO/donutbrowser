@@ -186,7 +186,8 @@
       "syncService": "账户",
       "integrations": "集成",
       "importProfile": "导入配置文件",
-      "extensions": "扩展程序"
+      "extensions": "扩展程序",
+      "operationLogs": "操作日志"
     }
   },
   "profiles": {
@@ -1600,5 +1601,19 @@
       "upToDateDescription": "所有浏览器版本都是最新的",
       "updateAllFailed": "更新浏览器版本失败"
     }
+  },
+  "operationLogs": {
+    "title": "操作日志",
+    "profileFilter": "配置文件",
+    "allProfiles": "全部配置文件",
+    "timeFilter": "开始时间",
+    "refresh": "刷新",
+    "empty": "暂无操作日志",
+    "time": "时间",
+    "profile": "配置文件",
+    "action": "操作",
+    "result": "结果",
+    "latency": "耗时",
+    "message": "消息"
   }
 }
