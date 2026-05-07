@@ -60,6 +60,24 @@ impl PoolNodeProtocol {
       _ => "socks5",
     }
   }
+
+  #[allow(dead_code)]
+  pub fn to_clash_type_str(&self) -> &'static str {
+    match self {
+      Self::Http => "http",
+      Self::Https => "https",
+      Self::Socks5 => "socks5",
+      Self::Socks4 => "socks4",
+      Self::Ss => "ss",
+      Self::Vmess => "vmess",
+      Self::Vless => "vless",
+      Self::Trojan => "trojan",
+      Self::Hysteria => "hysteria",
+      Self::Hysteria2 => "hysteria2",
+      Self::Tuic => "tuic",
+      Self::Unknown => "unknown",
+    }
+  }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -95,6 +113,37 @@ impl PoolNode {
 
   pub fn is_importable(&self) -> bool {
     self.protocol.is_natively_supported() && !self.has_unsupported_plugin()
+  }
+
+  #[allow(dead_code)]
+  pub fn needs_gateway(&self) -> bool {
+    if self.protocol == PoolNodeProtocol::Unknown {
+      return false;
+    }
+    if self.is_importable() {
+      return false;
+    }
+    if !self.protocol.is_natively_supported() {
+      return true;
+    }
+    self.has_unsupported_plugin()
+  }
+
+  #[allow(dead_code)]
+  pub fn is_usable(&self) -> bool {
+    self.is_importable() || self.needs_gateway()
+  }
+
+  #[allow(dead_code)]
+  pub fn to_node_config(&self) -> crate::mihomo_manager::NodeConfig<'_> {
+    crate::mihomo_manager::NodeConfig {
+      name: &self.name,
+      server: &self.server,
+      port: self.port,
+      protocol: self.protocol.to_clash_type_str(),
+      password: self.password.as_deref(),
+      extra: &self.extra,
+    }
   }
 
   pub fn to_proxy_settings(&self) -> Option<ProxySettings> {
@@ -901,5 +950,89 @@ proxies:
     assert!(!PoolNodeProtocol::Vmess.is_natively_supported());
     assert!(!PoolNodeProtocol::Trojan.is_natively_supported());
     assert!(!PoolNodeProtocol::Vless.is_natively_supported());
+  }
+
+  #[test]
+  fn test_needs_gateway() {
+    let node_plain_ss = PoolNode {
+      id: "1".into(),
+      subscription_id: "sub1".into(),
+      name: "Plain SS".into(),
+      protocol: PoolNodeProtocol::Ss,
+      server: "1.2.3.4".into(),
+      port: 8388,
+      username: None,
+      password: Some("pass".into()),
+      extra: {
+        let mut m = HashMap::new();
+        m.insert("cipher".into(), serde_json::json!("aes-256-gcm"));
+        m
+      },
+      stored_proxy_id: None,
+      last_latency_ms: None,
+      available: None,
+    };
+    assert!(node_plain_ss.is_importable());
+    assert!(!node_plain_ss.needs_gateway());
+    assert!(node_plain_ss.is_usable());
+
+    let node_ss_obfs = PoolNode {
+      id: "2".into(),
+      subscription_id: "sub1".into(),
+      name: "SS+obfs".into(),
+      protocol: PoolNodeProtocol::Ss,
+      server: "1.2.3.4".into(),
+      port: 8388,
+      username: None,
+      password: Some("pass".into()),
+      extra: {
+        let mut m = HashMap::new();
+        m.insert("cipher".into(), serde_json::json!("chacha20-ietf-poly1305"));
+        m.insert("plugin".into(), serde_json::json!("obfs"));
+        m
+      },
+      stored_proxy_id: None,
+      last_latency_ms: None,
+      available: None,
+    };
+    assert!(!node_ss_obfs.is_importable());
+    assert!(node_ss_obfs.needs_gateway());
+    assert!(node_ss_obfs.is_usable());
+
+    let node_vmess = PoolNode {
+      id: "3".into(),
+      subscription_id: "sub1".into(),
+      name: "VMess".into(),
+      protocol: PoolNodeProtocol::Vmess,
+      server: "1.2.3.4".into(),
+      port: 443,
+      username: None,
+      password: None,
+      extra: HashMap::new(),
+      stored_proxy_id: None,
+      last_latency_ms: None,
+      available: None,
+    };
+    assert!(!node_vmess.is_importable());
+    assert!(node_vmess.needs_gateway());
+    assert!(node_vmess.is_usable());
+
+    let node_unknown = PoolNode {
+      id: "4".into(),
+      subscription_id: "sub1".into(),
+      name: "Unknown".into(),
+      protocol: PoolNodeProtocol::Unknown,
+      server: "1.2.3.4".into(),
+      port: 443,
+      username: None,
+      password: None,
+      extra: HashMap::new(),
+      stored_proxy_id: None,
+      last_latency_ms: None,
+      available: None,
+    };
+    assert!(!node_unknown.is_importable());
+    assert!(!node_unknown.needs_gateway());
+    assert!(!node_unknown.is_usable());
   }
 }
