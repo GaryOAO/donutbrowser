@@ -39,6 +39,7 @@ pub mod proxy_runner;
 pub mod proxy_server;
 pub mod proxy_storage;
 mod settings_manager;
+mod subscription_pool;
 pub mod sync;
 mod synchronizer;
 pub mod traffic_stats;
