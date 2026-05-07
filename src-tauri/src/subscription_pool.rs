@@ -60,6 +60,23 @@ impl PoolNodeProtocol {
       _ => "socks5",
     }
   }
+
+  pub fn to_clash_type_str(&self) -> &'static str {
+    match self {
+      Self::Http => "http",
+      Self::Https => "https",
+      Self::Socks5 => "socks5",
+      Self::Socks4 => "socks4",
+      Self::Ss => "ss",
+      Self::Vmess => "vmess",
+      Self::Vless => "vless",
+      Self::Trojan => "trojan",
+      Self::Hysteria => "hysteria",
+      Self::Hysteria2 => "hysteria2",
+      Self::Tuic => "tuic",
+      Self::Unknown => "unknown",
+    }
+  }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -95,6 +112,30 @@ impl PoolNode {
 
   pub fn is_importable(&self) -> bool {
     self.protocol.is_natively_supported() && !self.has_unsupported_plugin()
+  }
+
+  pub fn needs_gateway(&self) -> bool {
+    if self.protocol == PoolNodeProtocol::Unknown {
+      return false;
+    }
+    if self.is_importable() {
+      return false;
+    }
+    if !self.protocol.is_natively_supported() {
+      return true;
+    }
+    self.has_unsupported_plugin()
+  }
+
+  pub fn to_node_config(&self) -> crate::mihomo_manager::NodeConfig<'_> {
+    crate::mihomo_manager::NodeConfig {
+      name: &self.name,
+      server: &self.server,
+      port: self.port,
+      protocol: self.protocol.to_clash_type_str(),
+      password: self.password.as_deref(),
+      extra: &self.extra,
+    }
   }
 
   pub fn to_proxy_settings(&self) -> Option<ProxySettings> {

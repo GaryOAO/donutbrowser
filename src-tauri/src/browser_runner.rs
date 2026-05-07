@@ -181,10 +181,26 @@ impl BrowserRunner {
             .await
         }
         ProxySource::SubscriptionNode(node_id) => {
-          let settings = crate::subscription_pool::SubscriptionPoolManager::instance()
-            .get_node(node_id)
-            .and_then(|n| n.to_proxy_settings());
-          Ok(settings)
+          let pool = crate::subscription_pool::SubscriptionPoolManager::instance();
+          let node = pool.get_node(node_id);
+          match node {
+            Some(ref n) if n.to_proxy_settings().is_some() => Ok(n.to_proxy_settings()),
+            Some(ref n) if n.needs_gateway() => {
+              let config = n.to_node_config();
+              let instance = crate::mihomo_manager::MihomoManager::instance()
+                .start_for_node(node_id, &config)
+                .await
+                .map_err(|e| format!("Failed to start gateway: {e}"))?;
+              Ok(Some(crate::browser::ProxySettings {
+                proxy_type: "socks5".to_string(),
+                host: "127.0.0.1".to_string(),
+                port: instance.local_socks_port,
+                username: None,
+                password: None,
+              }))
+            }
+            _ => Ok(None),
+          }
         }
       };
       let log_id = match source {
@@ -1179,6 +1195,12 @@ impl BrowserRunner {
     app_handle: tauri::AppHandle,
     profile: &BrowserProfile,
   ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    if let Some(crate::profile::types::ProxySource::SubscriptionNode(node_id)) =
+      &profile.proxy_source
+    {
+      let _ = crate::mihomo_manager::MihomoManager::instance().stop_for_node(node_id);
+    }
+
     // Handle Camoufox profiles using CamoufoxManager
     if profile.browser == "camoufox" {
       // Search by profile path to find the running Camoufox instance
