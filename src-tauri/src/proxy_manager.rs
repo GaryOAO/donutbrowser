@@ -161,6 +161,14 @@ pub struct StoredProxy {
   pub dynamic_proxy_url: Option<String>,
   #[serde(default)]
   pub dynamic_proxy_format: Option<String>,
+  #[serde(default)]
+  pub failure_count: u32,
+  #[serde(default)]
+  pub last_latency_ms: Option<u64>,
+  #[serde(default)]
+  pub last_available_at: Option<u64>,
+  #[serde(default)]
+  pub cooldown_until: Option<u64>,
 }
 
 impl StoredProxy {
@@ -181,6 +189,10 @@ impl StoredProxy {
       geo_isp: None,
       dynamic_proxy_url: None,
       dynamic_proxy_format: None,
+      failure_count: 0,
+      last_latency_ms: None,
+      last_available_at: None,
+      cooldown_until: None,
     }
   }
 
@@ -503,6 +515,10 @@ impl ProxyManager {
         geo_isp: None,
         dynamic_proxy_url: None,
         dynamic_proxy_format: None,
+        failure_count: 0,
+        last_latency_ms: None,
+        last_available_at: None,
+        cooldown_until: None,
       };
       stored_proxies.insert(CLOUD_PROXY_ID.to_string(), cloud_proxy.clone());
       drop(stored_proxies);
@@ -694,6 +710,10 @@ impl ProxyManager {
       geo_isp: isp,
       dynamic_proxy_url: None,
       dynamic_proxy_format: None,
+      failure_count: 0,
+      last_latency_ms: None,
+      last_available_at: None,
+      cooldown_until: None,
     };
 
     {
@@ -966,35 +986,34 @@ impl ProxyManager {
       .get_stored_proxies()
       .into_iter()
       .filter_map(|p| {
-        let cfg = crate::proxy_storage::get_proxy_config(&p.id);
-        let in_cooldown = cfg
-          .as_ref()
-          .and_then(|c| c.cooldown_until)
-          .is_some_and(|until| until > now);
+        let in_cooldown = p.cooldown_until.is_some_and(|until| until > now);
         if in_cooldown {
           return None;
         }
-        let failures = cfg.as_ref().map_or(0, |c| c.failure_count);
-        let latency = cfg.and_then(|c| c.last_latency_ms);
-        Some((p.id, p.proxy_settings, failures, latency))
+        Some((p.id, p.proxy_settings, p.failure_count, p.last_latency_ms))
       })
       .collect();
 
     if candidates.is_empty() {
-      return preferred_proxy_id
-        .and_then(|id| self.get_proxy_settings_by_id(id).map(|s| (id.to_string(), s)));
+      return preferred_proxy_id.and_then(|id| {
+        self
+          .get_proxy_settings_by_id(id)
+          .map(|s| (id.to_string(), s))
+      });
     }
 
     match binding_mode {
       ProxyBindingMode::SessionRandom => {
-        let idx = (Self::generate_sid_for_profile(profile_id).bytes().fold(0usize, |acc, b| {
-          acc.wrapping_add(b as usize)
-        })) % candidates.len();
+        let idx = (Self::generate_sid_for_profile(profile_id)
+          .bytes()
+          .fold(0usize, |acc, b| acc.wrapping_add(b as usize)))
+          % candidates.len();
         let (id, settings, _, _) = candidates.swap_remove(idx);
         Some((id, settings))
       }
       ProxyBindingMode::RotatePerLaunch => {
-        candidates.sort_by_key(|(_, _, failures, latency)| (*failures, latency.unwrap_or(u64::MAX)));
+        candidates
+          .sort_by_key(|(_, _, failures, latency)| (*failures, latency.unwrap_or(u64::MAX)));
         let (id, settings, _, _) = candidates.remove(0);
         Some((id, settings))
       }
@@ -1002,23 +1021,32 @@ impl ProxyManager {
     }
   }
 
+  #[allow(dead_code)]
   pub fn mark_proxy_health(&self, proxy_id: &str, success: bool, latency_ms: Option<u64>) {
-    if let Some(mut cfg) = crate::proxy_storage::get_proxy_config(proxy_id) {
+    let updated_proxy = {
+      let mut stored_proxies = self.stored_proxies.lock().unwrap();
+      let Some(proxy) = stored_proxies.get_mut(proxy_id) else {
+        return;
+      };
       let now = Self::get_current_timestamp();
       if success {
-        cfg.failure_count = 0;
-        cfg.last_available_at = Some(now);
-        cfg.cooldown_until = None;
+        proxy.failure_count = 0;
+        proxy.last_available_at = Some(now);
+        proxy.cooldown_until = None;
         if let Some(latency) = latency_ms {
-          cfg.last_latency_ms = Some(latency);
+          proxy.last_latency_ms = Some(latency);
         }
       } else {
-        cfg.failure_count = cfg.failure_count.saturating_add(1);
-        if cfg.failure_count >= DEFAULT_PROXY_FAILURE_THRESHOLD {
-          cfg.cooldown_until = Some(now + DEFAULT_PROXY_COOLDOWN_SECONDS);
+        proxy.failure_count = proxy.failure_count.saturating_add(1);
+        if proxy.failure_count >= DEFAULT_PROXY_FAILURE_THRESHOLD {
+          proxy.cooldown_until = Some(now + DEFAULT_PROXY_COOLDOWN_SECONDS);
         }
       }
-      let _ = crate::proxy_storage::update_proxy_config(&cfg);
+      proxy.clone()
+    };
+
+    if let Err(e) = self.save_proxy(&updated_proxy) {
+      log::warn!("Failed to save proxy health for {proxy_id}: {e}");
     }
   }
 
@@ -3362,6 +3390,134 @@ mod tests {
   }
 
   #[test]
+  fn test_proxy_selection_skips_cooldown_proxy() {
+    let pm = ProxyManager::new();
+    let now = ProxyManager::get_current_timestamp();
+
+    let cooling_proxy = StoredProxy {
+      id: format!("cooling_{}", rand::random::<u32>()),
+      name: "Cooling proxy".to_string(),
+      proxy_settings: ProxySettings {
+        proxy_type: "http".to_string(),
+        host: "cooling.example.com".to_string(),
+        port: 8080,
+        username: None,
+        password: None,
+      },
+      sync_enabled: false,
+      last_sync: None,
+      is_cloud_managed: false,
+      is_cloud_derived: false,
+      geo_country: None,
+      geo_state: None,
+      geo_region: None,
+      geo_city: None,
+      geo_isp: None,
+      dynamic_proxy_url: None,
+      dynamic_proxy_format: None,
+      failure_count: DEFAULT_PROXY_FAILURE_THRESHOLD,
+      last_latency_ms: Some(1),
+      last_available_at: None,
+      cooldown_until: Some(now + 60),
+    };
+    let healthy_proxy = StoredProxy {
+      id: format!("healthy_{}", rand::random::<u32>()),
+      name: "Healthy proxy".to_string(),
+      proxy_settings: ProxySettings {
+        proxy_type: "http".to_string(),
+        host: "healthy.example.com".to_string(),
+        port: 8080,
+        username: None,
+        password: None,
+      },
+      sync_enabled: false,
+      last_sync: None,
+      is_cloud_managed: false,
+      is_cloud_derived: false,
+      geo_country: None,
+      geo_state: None,
+      geo_region: None,
+      geo_city: None,
+      geo_isp: None,
+      dynamic_proxy_url: None,
+      dynamic_proxy_format: None,
+      failure_count: 0,
+      last_latency_ms: Some(50),
+      last_available_at: Some(now),
+      cooldown_until: None,
+    };
+
+    {
+      let mut stored = pm.stored_proxies.lock().unwrap();
+      stored.insert(cooling_proxy.id.clone(), cooling_proxy);
+      stored.insert(healthy_proxy.id.clone(), healthy_proxy.clone());
+    }
+
+    let selected = pm
+      .select_proxy_for_profile("profile-a", None, ProxyBindingMode::RotatePerLaunch)
+      .expect("healthy proxy should be selected");
+    assert_eq!(selected.0, healthy_proxy.id);
+    assert_eq!(selected.1.host, "healthy.example.com");
+  }
+
+  #[test]
+  fn test_mark_proxy_health_persists_and_clears_cooldown() {
+    let pm = ProxyManager::new();
+    let proxy_id = format!("health_{}", rand::random::<u32>());
+    let stored_proxy = StoredProxy {
+      id: proxy_id.clone(),
+      name: "Health proxy".to_string(),
+      proxy_settings: ProxySettings {
+        proxy_type: "http".to_string(),
+        host: "health.example.com".to_string(),
+        port: 8080,
+        username: None,
+        password: None,
+      },
+      sync_enabled: false,
+      last_sync: None,
+      is_cloud_managed: false,
+      is_cloud_derived: false,
+      geo_country: None,
+      geo_state: None,
+      geo_region: None,
+      geo_city: None,
+      geo_isp: None,
+      dynamic_proxy_url: None,
+      dynamic_proxy_format: None,
+      failure_count: DEFAULT_PROXY_FAILURE_THRESHOLD,
+      last_latency_ms: Some(900),
+      last_available_at: None,
+      cooldown_until: Some(ProxyManager::get_current_timestamp() + 60),
+    };
+
+    {
+      let mut stored = pm.stored_proxies.lock().unwrap();
+      stored.insert(proxy_id.clone(), stored_proxy);
+    }
+
+    pm.mark_proxy_health(&proxy_id, true, Some(42));
+
+    let in_memory = {
+      let stored = pm.stored_proxies.lock().unwrap();
+      stored.get(&proxy_id).cloned().unwrap()
+    };
+    assert_eq!(in_memory.failure_count, 0);
+    assert_eq!(in_memory.last_latency_ms, Some(42));
+    assert!(in_memory.last_available_at.is_some());
+    assert!(in_memory.cooldown_until.is_none());
+
+    let from_disk: StoredProxy =
+      serde_json::from_str(&std::fs::read_to_string(pm.get_proxy_file_path(&proxy_id)).unwrap())
+        .unwrap();
+    assert_eq!(from_disk.failure_count, 0);
+    assert_eq!(from_disk.last_latency_ms, Some(42));
+    assert!(from_disk.cooldown_until.is_none());
+
+    pm.delete_proxy_file(&proxy_id).unwrap();
+  }
+
+  #[test]
   fn test_stored_proxy_geo_field_migration() {
     // Simulate legacy data with geo_state but no geo_region
     let mut proxy = StoredProxy {
@@ -3385,6 +3541,10 @@ mod tests {
       geo_isp: None,
       dynamic_proxy_url: None,
       dynamic_proxy_format: None,
+      failure_count: 0,
+      last_latency_ms: None,
+      last_available_at: None,
+      cooldown_until: None,
     };
 
     // Before migration
