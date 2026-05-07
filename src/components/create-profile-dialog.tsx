@@ -53,6 +53,7 @@ import type {
   BrowserReleaseTypes,
   CamoufoxConfig,
   CamoufoxOS,
+  ProxyBindingMode,
   WayfernConfig,
   WayfernOS,
 } from "@/types";
@@ -86,6 +87,7 @@ interface CreateProfileDialogProps {
     ephemeral?: boolean;
     dnsBlocklist?: string;
     launchHook?: string;
+    proxyBindingMode?: ProxyBindingMode;
   }) => Promise<void>;
   selectedGroupId?: string;
   crossOsUnlocked?: boolean;
@@ -126,6 +128,8 @@ export function CreateProfileDialog({
     useState<BrowserTypeString | null>(null);
   const [selectedProxyId, setSelectedProxyId] = useState<string>();
   const [proxyPopoverOpen, setProxyPopoverOpen] = useState(false);
+  const [proxyBindingMode, setProxyBindingMode] =
+    useState<ProxyBindingMode>("fixed_node");
   const [dnsBlocklist, setDnsBlocklist] = useState<string>("");
   const [launchHook, setLaunchHook] = useState("");
 
@@ -152,6 +156,7 @@ export function CreateProfileDialog({
     setSelectedBrowser(null);
     setProfileName("");
     setSelectedProxyId(undefined);
+    setProxyBindingMode("fixed_node");
     setLaunchHook("");
   };
 
@@ -161,6 +166,7 @@ export function CreateProfileDialog({
     setSelectedBrowser(null);
     setProfileName("");
     setSelectedProxyId(undefined);
+    setProxyBindingMode("fixed_node");
     setLaunchHook("");
   };
 
@@ -376,6 +382,9 @@ export function CreateProfileDialog({
     const resolvedProxyId = isVpnSelection ? undefined : selectedProxyId;
     const resolvedVpnId =
       isVpnSelection && selectedProxyId ? selectedProxyId.slice(4) : undefined;
+    const resolvedProxyBindingMode = isVpnSelection
+      ? "fixed_node"
+      : proxyBindingMode;
     try {
       if (activeTab === "anti-detect") {
         // Anti-detect browser - check if Wayfern or Camoufox is selected
@@ -403,6 +412,7 @@ export function CreateProfileDialog({
             ephemeral,
             dnsBlocklist: dnsBlocklist || undefined,
             launchHook: launchHook.trim() || undefined,
+            proxyBindingMode: resolvedProxyBindingMode,
           });
         } else {
           // Default to Camoufox
@@ -430,6 +440,7 @@ export function CreateProfileDialog({
             ephemeral,
             dnsBlocklist: dnsBlocklist || undefined,
             launchHook: launchHook.trim() || undefined,
+            proxyBindingMode: resolvedProxyBindingMode,
           });
         }
       } else {
@@ -451,10 +462,12 @@ export function CreateProfileDialog({
           browserStr: selectedBrowser,
           version: bestVersion.version,
           releaseType: bestVersion.releaseType,
-          proxyId: selectedProxyId,
+          proxyId: resolvedProxyId,
+          vpnId: resolvedVpnId,
           groupId: selectedGroupId !== "default" ? selectedGroupId : undefined,
           dnsBlocklist: dnsBlocklist || undefined,
           launchHook: launchHook.trim() || undefined,
+          proxyBindingMode: resolvedProxyBindingMode,
         });
       }
 
@@ -476,6 +489,7 @@ export function CreateProfileDialog({
     setActiveTab("anti-detect");
     setSelectedBrowser(null);
     setSelectedProxyId(undefined);
+    setProxyBindingMode("fixed_node");
     setLaunchHook("");
     setReleaseTypes({});
     setIsLoadingReleaseTypes(false);
@@ -534,6 +548,12 @@ export function CreateProfileDialog({
   const regularBrowsers = browserOptions.filter((browser) =>
     supportedBrowsers.includes(browser.value),
   );
+  const proxyBindingDescriptionKey =
+    proxyBindingMode === "fixed_node"
+      ? "fixedNodeDescription"
+      : proxyBindingMode === "session_random"
+        ? "sessionRandomDescription"
+        : "rotatePerLaunchDescription";
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -1157,7 +1177,9 @@ export function CreateProfileDialog({
                                       ))}
                                     </CommandGroup>
                                     {vpnConfigs.length > 0 && (
-                                      <CommandGroup heading="VPNs">
+                                      <CommandGroup
+                                        heading={t("createProfile.proxy.vpns")}
+                                      >
                                         {vpnConfigs.map((vpn) => (
                                           <CommandItem
                                             key={vpn.id}
@@ -1199,6 +1221,48 @@ export function CreateProfileDialog({
                             </div>
                           )}
                         </div>
+
+                        {storedProxies.length > 0 &&
+                          !selectedProxyId?.startsWith("vpn-") && (
+                            <div className="space-y-2">
+                              <Label htmlFor="proxy-binding-mode">
+                                {t("createProfile.proxy.binding.label")}
+                              </Label>
+                              <Select
+                                value={proxyBindingMode}
+                                onValueChange={(value) => {
+                                  setProxyBindingMode(
+                                    value as ProxyBindingMode,
+                                  );
+                                }}
+                                disabled={isCreating}
+                              >
+                                <SelectTrigger id="proxy-binding-mode">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="fixed_node">
+                                    {t("createProfile.proxy.binding.fixedNode")}
+                                  </SelectItem>
+                                  <SelectItem value="session_random">
+                                    {t(
+                                      "createProfile.proxy.binding.sessionRandom",
+                                    )}
+                                  </SelectItem>
+                                  <SelectItem value="rotate_per_launch">
+                                    {t(
+                                      "createProfile.proxy.binding.rotatePerLaunch",
+                                    )}
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <p className="text-xs text-muted-foreground">
+                                {t(
+                                  `createProfile.proxy.binding.${proxyBindingDescriptionKey}`,
+                                )}
+                              </p>
+                            </div>
+                          )}
 
                         <div className="space-y-2">
                           <Label htmlFor="launch-hook-url">
@@ -1523,7 +1587,9 @@ export function CreateProfileDialog({
                                       ))}
                                     </CommandGroup>
                                     {vpnConfigs.length > 0 && (
-                                      <CommandGroup heading="VPNs">
+                                      <CommandGroup
+                                        heading={t("createProfile.proxy.vpns")}
+                                      >
                                         {vpnConfigs.map((vpn) => (
                                           <CommandItem
                                             key={vpn.id}

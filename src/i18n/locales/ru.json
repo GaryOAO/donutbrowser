@@ -291,7 +291,18 @@
       "noProxiesAvailable": "Нет доступных прокси или VPN. Добавьте один для маршрутизации трафика этого профиля.",
       "search": "Поиск прокси или VPN...",
       "notFound": "Прокси или VPN не найдены.",
-      "searchWithCountries": "Поиск прокси, VPN или стран..."
+      "searchWithCountries": "Поиск прокси, VPN или стран...",
+      "vpns": "VPNs",
+      "binding": {
+        "label": "Proxy binding",
+        "description": "Choose how this profile selects proxies at launch.",
+        "fixedNode": "Fixed proxy",
+        "fixedNodeDescription": "Always use the selected proxy.",
+        "sessionRandom": "Sticky random",
+        "sessionRandomDescription": "Choose one healthy proxy for this profile.",
+        "rotatePerLaunch": "Best healthy per launch",
+        "rotatePerLaunchDescription": "Pick the healthiest proxy each time this profile starts."
+      }
     },
     "launchHook": {
       "label": "URL хука запуска",
