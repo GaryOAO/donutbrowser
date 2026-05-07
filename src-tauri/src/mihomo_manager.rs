@@ -63,24 +63,6 @@ impl MihomoManager {
     if local.exists() {
       return Some(local);
     }
-
-    let which_cmd = if cfg!(target_os = "windows") {
-      "where"
-    } else {
-      "which"
-    };
-    if let Ok(output) = std::process::Command::new(which_cmd).arg("mihomo").output() {
-      if output.status.success() {
-        let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if !path_str.is_empty() {
-          let p = PathBuf::from(path_str);
-          if p.exists() {
-            return Some(p);
-          }
-        }
-      }
-    }
-
     None
   }
 
