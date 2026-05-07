@@ -39,6 +39,7 @@ pub mod proxy_runner;
 pub mod proxy_server;
 pub mod proxy_storage;
 mod settings_manager;
+mod subscription_pool;
 pub mod sync;
 mod synchronizer;
 pub mod traffic_stats;
@@ -186,6 +187,31 @@ impl<R: Runtime> WindowExt for WebviewWindow<R> {
 
     Ok(())
   }
+}
+
+#[tauri::command]
+async fn set_profile_proxy_source(
+  profile_id: String,
+  proxy_source: Option<profile::types::ProxySource>,
+) -> Result<(), String> {
+  proxy_manager::PROXY_MANAGER.set_profile_proxy_source(&profile_id, proxy_source)
+}
+
+#[tauri::command]
+async fn resolve_profile_proxy_info(
+  profile_id: String,
+) -> Result<Option<proxy_manager::ResolvedProxyInfo>, String> {
+  use crate::profile::manager::PROFILE_MANAGER;
+  let profiles = PROFILE_MANAGER
+    .list_profiles()
+    .map_err(|e| format!("Failed to list profiles: {e}"))?;
+  let profile_uuid =
+    uuid::Uuid::parse_str(&profile_id).map_err(|_| format!("Invalid profile ID: {profile_id}"))?;
+  let profile = profiles
+    .into_iter()
+    .find(|p| p.id == profile_uuid)
+    .ok_or_else(|| format!("Profile '{profile_id}' not found"))?;
+  Ok(proxy_manager::resolve_proxy_info(&profile))
 }
 
 #[tauri::command]
@@ -1201,6 +1227,7 @@ async fn generate_sample_fingerprint(
     version: version.clone(),
     process_id: None,
     proxy_id: None,
+    proxy_source: None,
     proxy_binding_mode: crate::profile::ProxyBindingMode::FixedNode,
     vpn_id: None,
     launch_hook: None,
@@ -2186,6 +2213,9 @@ pub fn run() {
       // DNS blocklist commands
       dns_blocklist::get_dns_blocklist_cache_status,
       dns_blocklist::refresh_dns_blocklists,
+      // Proxy source commands
+      set_profile_proxy_source,
+      resolve_profile_proxy_info,
     ])
     .build(tauri::generate_context!())
     .expect("error while building tauri application")
@@ -2237,6 +2267,8 @@ mod tests {
       "clash_switch_proxy",
       "clash_test_latency",
       "clash_subscription_status",
+      "set_profile_proxy_source",
+      "resolve_profile_proxy_info",
     ];
 
     // Extract command names from the generate_handler! macro in this file

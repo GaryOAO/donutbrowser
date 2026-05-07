@@ -170,6 +170,7 @@ impl ProfileManager {
           browser: browser.to_string(),
           version: version.to_string(),
           proxy_id: proxy_id.clone(),
+          proxy_source: None,
           proxy_binding_mode: ProxyBindingMode::FixedNode,
           vpn_id: None,
           launch_hook: launch_hook.clone(),
@@ -272,6 +273,7 @@ impl ProfileManager {
           browser: browser.to_string(),
           version: version.to_string(),
           proxy_id: proxy_id.clone(),
+          proxy_source: None,
           proxy_binding_mode: ProxyBindingMode::FixedNode,
           vpn_id: None,
           launch_hook: launch_hook.clone(),
@@ -328,6 +330,7 @@ impl ProfileManager {
       browser: browser.to_string(),
       version: version.to_string(),
       proxy_id: proxy_id.clone(),
+      proxy_source: None,
       proxy_binding_mode,
       vpn_id: vpn_id.clone(),
       launch_hook,
@@ -976,6 +979,7 @@ impl ProfileManager {
       browser: source.browser,
       version: source.version,
       proxy_id: source.proxy_id,
+      proxy_source: source.proxy_source,
       proxy_binding_mode: source.proxy_binding_mode,
       vpn_id: source.vpn_id,
       launch_hook: source.launch_hook,
@@ -2347,5 +2351,5 @@ pub fn delete_profile(app_handle: tauri::AppHandle, profile_id: String) -> Resul
 }
 
 lazy_static::lazy_static! {
-  static ref PROFILE_MANAGER: ProfileManager = ProfileManager::new();
+  pub static ref PROFILE_MANAGER: ProfileManager = ProfileManager::new();
 }

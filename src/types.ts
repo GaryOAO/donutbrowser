@@ -6,6 +6,18 @@ export interface ProxySettings {
   password?: string;
 }
 
+export type ProxySource =
+  | { type: "StoredProxy"; id: string }
+  | { type: "SubscriptionNode"; id: string };
+
+export interface ResolvedProxyInfo {
+  source_type: string;
+  name: string;
+  protocol: string;
+  server: string;
+  port: number;
+}
+
 export interface TableSortingSettings {
   column: string; // "name", "note", "status"
   direction: string; // "asc" or "desc"
@@ -16,7 +28,8 @@ export interface BrowserProfile {
   name: string;
   browser: string;
   version: string;
-  proxy_id?: string; // Reference to stored proxy
+  proxy_id?: string;
+  proxy_source?: ProxySource;
   proxy_binding_mode?: ProxyBindingMode;
   vpn_id?: string; // Reference to stored VPN config
   launch_hook?: string;

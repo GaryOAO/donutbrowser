@@ -814,7 +814,35 @@ impl ProxyManager {
     list
   }
 
-  // Get a stored proxy by ID
+  pub fn get_stored_proxy(&self, proxy_id: &str) -> Option<StoredProxy> {
+    let stored_proxies = self.stored_proxies.lock().unwrap();
+    stored_proxies.get(proxy_id).cloned()
+  }
+
+  pub fn set_profile_proxy_source(
+    &self,
+    profile_id: &str,
+    proxy_source: Option<crate::profile::types::ProxySource>,
+  ) -> Result<(), String> {
+    use crate::profile::manager::PROFILE_MANAGER;
+    let profiles = PROFILE_MANAGER
+      .list_profiles()
+      .map_err(|e| format!("Failed to list profiles: {e}"))?;
+    let profile_uuid =
+      uuid::Uuid::parse_str(profile_id).map_err(|_| format!("Invalid profile ID: {profile_id}"))?;
+    let mut profile = profiles
+      .into_iter()
+      .find(|p| p.id == profile_uuid)
+      .ok_or_else(|| format!("Profile '{profile_id}' not found"))?;
+    profile.proxy_source = proxy_source.clone();
+    if proxy_source.is_some() {
+      profile.proxy_id = None;
+    }
+    PROFILE_MANAGER
+      .save_profile(&profile)
+      .map_err(|e| format!("Failed to save profile: {e}"))?;
+    Ok(())
+  }
 
   // Update a stored proxy
   pub fn update_stored_proxy(
@@ -2397,6 +2425,55 @@ impl ProxyManager {
       .get(&browser_pid)
       .cloned()
   }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedProxyInfo {
+  pub source_type: String,
+  pub name: String,
+  pub protocol: String,
+  pub server: String,
+  pub port: u16,
+}
+
+pub fn resolve_proxy_info(profile: &crate::profile::BrowserProfile) -> Option<ResolvedProxyInfo> {
+  use crate::profile::types::ProxySource;
+  if let Some(source) = &profile.proxy_source {
+    match source {
+      ProxySource::StoredProxy(id) => {
+        let proxy = PROXY_MANAGER.get_stored_proxy(id)?;
+        return Some(ResolvedProxyInfo {
+          source_type: "stored_proxy".into(),
+          name: proxy.name.clone(),
+          protocol: proxy.proxy_settings.proxy_type.clone(),
+          server: proxy.proxy_settings.host.clone(),
+          port: proxy.proxy_settings.port,
+        });
+      }
+      ProxySource::SubscriptionNode(node_id) => {
+        let node =
+          crate::subscription_pool::SubscriptionPoolManager::instance().get_node(node_id)?;
+        return Some(ResolvedProxyInfo {
+          source_type: "subscription_node".into(),
+          name: node.name.clone(),
+          protocol: format!("{:?}", node.protocol).to_lowercase(),
+          server: node.server.clone(),
+          port: node.port,
+        });
+      }
+    }
+  }
+  if let Some(proxy_id) = &profile.proxy_id {
+    let proxy = PROXY_MANAGER.get_stored_proxy(proxy_id)?;
+    return Some(ResolvedProxyInfo {
+      source_type: "stored_proxy".into(),
+      name: proxy.name.clone(),
+      protocol: proxy.proxy_settings.proxy_type.clone(),
+      server: proxy.proxy_settings.host.clone(),
+      port: proxy.proxy_settings.port,
+    });
+  }
+  None
 }
 
 // Create a singleton instance of the proxy manager
