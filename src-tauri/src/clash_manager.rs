@@ -10,21 +10,6 @@ pub struct ApiError {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ClashProxyNode {
-  pub name: String,
-  #[serde(rename = "type")]
-  pub node_type: String,
-  #[serde(default)]
-  pub history: Vec<ClashDelayRecord>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ClashDelayRecord {
-  pub delay: i64,
-  pub time: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClashProxyGroup {
   pub name: String,
   #[serde(rename = "type")]
@@ -56,6 +41,7 @@ struct ClashProvidersResponse {
 struct ClashProviderDetail {
   #[serde(rename = "vehicleType")]
   vehicle_type: Option<String>,
+  #[serde(rename = "updatedAt", alias = "updated_at")]
   updated_at: Option<String>,
 }
 

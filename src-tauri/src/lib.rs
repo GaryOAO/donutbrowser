@@ -251,7 +251,9 @@ async fn delete_stored_proxy(app_handle: tauri::AppHandle, proxy_id: String) -> 
 
 #[derive(Deserialize)]
 struct ClashCommandInput {
+  #[serde(default, alias = "baseUrl")]
   base_url: Option<String>,
+  #[serde(default)]
   secret: Option<String>,
 }
 
@@ -266,18 +268,23 @@ fn resolve_clash_input(
       details: Some(e.to_string()),
     })?;
 
-  let cfg = input.unwrap_or(ClashCommandInput {
-    base_url: settings.clash_backend.base_url,
-    secret: settings.clash_backend.secret,
+  let input = input.unwrap_or(ClashCommandInput {
+    base_url: None,
+    secret: None,
   });
+  let base_url = input
+    .base_url
+    .or(settings.clash_backend.base_url)
+    .map(|url| url.trim().trim_end_matches('/').to_string())
+    .filter(|url| !url.is_empty())
+    .ok_or(clash_manager::ApiError {
+      code: "CLASH_URL_MISSING".to_string(),
+      message: "Clash base URL is not configured".to_string(),
+      details: None,
+    })?;
+  let secret = input.secret.or(settings.clash_backend.secret);
 
-  let base_url = cfg.base_url.ok_or(clash_manager::ApiError {
-    code: "CLASH_URL_MISSING".to_string(),
-    message: "Clash base URL is not configured".to_string(),
-    details: None,
-  })?;
-
-  Ok((base_url, cfg.secret))
+  Ok((base_url, secret))
 }
 
 #[tauri::command]
@@ -2219,6 +2226,11 @@ mod tests {
       "generate_sample_fingerprint",
       "cloud_get_wayfern_token",
       "cloud_refresh_wayfern_token",
+      // Backend control-plane commands used by the proxy pool UI/API roadmap.
+      "clash_list_groups",
+      "clash_switch_proxy",
+      "clash_test_latency",
+      "clash_subscription_status",
     ];
 
     // Extract command names from the generate_handler! macro in this file

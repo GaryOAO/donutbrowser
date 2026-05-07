@@ -33,18 +33,13 @@ pub struct ClashBackendSettings {
   pub default_policy_group: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub enum ProxyBackend {
   #[serde(rename = "local")]
+  #[default]
   Local,
   #[serde(rename = "clash")]
   Clash,
-}
-
-impl Default for ProxyBackend {
-  fn default() -> Self {
-    Self::Local
-  }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
