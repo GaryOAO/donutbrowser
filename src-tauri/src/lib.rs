@@ -1,4 +1,5 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+use serde::Deserialize;
 use std::env;
 use std::sync::Mutex;
 use tauri::{Manager, Runtime, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
@@ -18,6 +19,7 @@ mod browser_runner;
 mod browser_version_manager;
 pub mod camoufox;
 mod camoufox_manager;
+mod clash_manager;
 mod default_browser;
 pub mod dns_blocklist;
 mod downloaded_browsers_registry;
@@ -245,6 +247,88 @@ async fn delete_stored_proxy(app_handle: tauri::AppHandle, proxy_id: String) -> 
   crate::proxy_manager::PROXY_MANAGER
     .delete_stored_proxy(&app_handle, &proxy_id)
     .map_err(|e| format!("Failed to delete stored proxy: {e}"))
+}
+
+#[derive(Deserialize)]
+struct ClashCommandInput {
+  #[serde(default, alias = "baseUrl")]
+  base_url: Option<String>,
+  #[serde(default)]
+  secret: Option<String>,
+}
+
+fn resolve_clash_input(
+  input: Option<ClashCommandInput>,
+) -> Result<(String, Option<String>), clash_manager::ApiError> {
+  let settings = settings_manager::SettingsManager::instance()
+    .load_settings()
+    .map_err(|e| clash_manager::ApiError {
+      code: "SETTINGS_LOAD_ERROR".to_string(),
+      message: "Failed to load settings".to_string(),
+      details: Some(e.to_string()),
+    })?;
+
+  let input = input.unwrap_or(ClashCommandInput {
+    base_url: None,
+    secret: None,
+  });
+  let base_url = input
+    .base_url
+    .or(settings.clash_backend.base_url)
+    .map(|url| url.trim().trim_end_matches('/').to_string())
+    .filter(|url| !url.is_empty())
+    .ok_or(clash_manager::ApiError {
+      code: "CLASH_URL_MISSING".to_string(),
+      message: "Clash base URL is not configured".to_string(),
+      details: None,
+    })?;
+  let secret = input.secret.or(settings.clash_backend.secret);
+
+  Ok((base_url, secret))
+}
+
+#[tauri::command]
+async fn clash_list_groups(
+  input: Option<ClashCommandInput>,
+) -> Result<Vec<clash_manager::ClashProxyGroup>, clash_manager::ApiError> {
+  let (base_url, secret) = resolve_clash_input(input)?;
+  clash_manager::ClashManager::list_groups(&base_url, secret.as_deref()).await
+}
+
+#[tauri::command]
+async fn clash_switch_proxy(
+  group: String,
+  node: String,
+  input: Option<ClashCommandInput>,
+) -> Result<(), clash_manager::ApiError> {
+  let (base_url, secret) = resolve_clash_input(input)?;
+  clash_manager::ClashManager::switch_proxy(&base_url, secret.as_deref(), &group, &node).await
+}
+
+#[tauri::command]
+async fn clash_test_latency(
+  proxy: String,
+  test_url: String,
+  timeout_ms: Option<u64>,
+  input: Option<ClashCommandInput>,
+) -> Result<i64, clash_manager::ApiError> {
+  let (base_url, secret) = resolve_clash_input(input)?;
+  clash_manager::ClashManager::test_latency(
+    &base_url,
+    secret.as_deref(),
+    &proxy,
+    &test_url,
+    timeout_ms.unwrap_or(5000),
+  )
+  .await
+}
+
+#[tauri::command]
+async fn clash_subscription_status(
+  input: Option<ClashCommandInput>,
+) -> Result<Vec<clash_manager::ClashSubscriptionStatus>, clash_manager::ApiError> {
+  let (base_url, secret) = resolve_clash_input(input)?;
+  clash_manager::ClashManager::subscription_status(&base_url, secret.as_deref()).await
 }
 
 #[tauri::command]
@@ -1981,6 +2065,10 @@ pub fn run() {
       update_stored_proxy,
       delete_stored_proxy,
       check_proxy_validity,
+      clash_list_groups,
+      clash_switch_proxy,
+      clash_test_latency,
+      clash_subscription_status,
       get_cached_proxy_check,
       export_proxies,
       import_proxies_json,
@@ -2138,6 +2226,11 @@ mod tests {
       "generate_sample_fingerprint",
       "cloud_get_wayfern_token",
       "cloud_refresh_wayfern_token",
+      // Backend control-plane commands used by the proxy pool UI/API roadmap.
+      "clash_list_groups",
+      "clash_switch_proxy",
+      "clash_test_latency",
+      "clash_subscription_status",
     ];
 
     // Extract command names from the generate_handler! macro in this file
