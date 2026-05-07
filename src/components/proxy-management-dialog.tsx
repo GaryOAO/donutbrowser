@@ -5,7 +5,16 @@ import { emit, listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GoPlus } from "react-icons/go";
-import { LuDownload, LuPencil, LuTrash2, LuUpload } from "react-icons/lu";
+import {
+  LuDownload,
+  LuList,
+  LuPencil,
+  LuPlus,
+  LuRefreshCw,
+  LuSignal,
+  LuTrash2,
+  LuUpload,
+} from "react-icons/lu";
 import { toast } from "sonner";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 import { ProxyExportDialog } from "@/components/proxy-export-dialog";
@@ -22,6 +31,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Table,
@@ -40,7 +51,13 @@ import {
 import { useProxyEvents } from "@/hooks/use-proxy-events";
 import { useVpnEvents } from "@/hooks/use-vpn-events";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
-import type { ProxyCheckResult, StoredProxy, VpnConfig } from "@/types";
+import type {
+  PoolNode,
+  ProxyCheckResult,
+  StoredProxy,
+  Subscription,
+  VpnConfig,
+} from "@/types";
 import { ProxyCheckButton } from "./proxy-check-button";
 import { RippleButton } from "./ui/ripple";
 import { VpnCheckButton } from "./vpn-check-button";
@@ -146,6 +163,24 @@ export function ProxyManagementDialog({
   const [isTogglingVpnSync, setIsTogglingVpnSync] = useState<
     Record<string, boolean>
   >({});
+
+  // Subscription pool state
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [poolNodes, setPoolNodes] = useState<PoolNode[]>([]);
+  const [showSubAddForm, setShowSubAddForm] = useState(false);
+  const [newSubName, setNewSubName] = useState("");
+  const [newSubUrl, setNewSubUrl] = useState("");
+  const [isAddingSub, setIsAddingSub] = useState(false);
+  const [refreshingSubId, setRefreshingSubId] = useState<string | null>(null);
+  const [testingNodeId, setTestingNodeId] = useState<string | null>(null);
+  const [importingNodeId, setImportingNodeId] = useState<string | null>(null);
+  const [importingAllSubId, setImportingAllSubId] = useState<string | null>(
+    null,
+  );
+  const [selectedSubFilter, setSelectedSubFilter] = useState<string | null>(
+    null,
+  );
+  const [testingAllSubId, setTestingAllSubId] = useState<string | null>(null);
 
   const { storedProxies: rawProxies, proxyUsage, isLoading } = useProxyEvents();
   const { vpnConfigs, vpnUsage, isLoading: isLoadingVpns } = useVpnEvents();
@@ -260,6 +295,198 @@ export function ProxyManagementDialog({
       void loadVpnInUse();
     }
   }, [vpnConfigs]);
+
+  // Subscription pool data loading
+  const loadSubscriptionData = useCallback(async () => {
+    try {
+      const [subs, nodes] = await Promise.all([
+        invoke<Subscription[]>("list_subscriptions"),
+        invoke<PoolNode[]>("list_pool_nodes", { subscriptionId: null }),
+      ]);
+      setSubscriptions(subs);
+      setPoolNodes(nodes);
+    } catch {
+      // Ignore load errors
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      void loadSubscriptionData();
+    }
+  }, [isOpen, loadSubscriptionData]);
+
+  useEffect(() => {
+    const unlisten = listen("subscription-pool-changed", () => {
+      void loadSubscriptionData();
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [loadSubscriptionData]);
+
+  const handleAddSubscription = useCallback(async () => {
+    if (!newSubName.trim() || !newSubUrl.trim()) return;
+    setIsAddingSub(true);
+    try {
+      const sub = await invoke<Subscription>("add_subscription", {
+        name: newSubName.trim(),
+        url: newSubUrl.trim(),
+      });
+      showSuccessToast(
+        t("subscriptionPool.addSuccess", { count: sub.node_count }),
+      );
+      setNewSubName("");
+      setNewSubUrl("");
+      setShowSubAddForm(false);
+      await loadSubscriptionData();
+    } catch (e) {
+      showErrorToast(t("subscriptionPool.addError"), {
+        description: String(e),
+      });
+    } finally {
+      setIsAddingSub(false);
+    }
+  }, [newSubName, newSubUrl, loadSubscriptionData, t]);
+
+  const handleRefreshSubscription = useCallback(
+    async (subId: string) => {
+      setRefreshingSubId(subId);
+      try {
+        const sub = await invoke<Subscription>("refresh_subscription", {
+          subscriptionId: subId,
+        });
+        showSuccessToast(
+          t("subscriptionPool.refreshSuccess", { count: sub.node_count }),
+        );
+        await loadSubscriptionData();
+      } catch (e) {
+        showErrorToast(t("subscriptionPool.refreshError"), {
+          description: String(e),
+        });
+      } finally {
+        setRefreshingSubId(null);
+      }
+    },
+    [loadSubscriptionData, t],
+  );
+
+  const handleDeleteSubscription = useCallback(
+    async (subId: string) => {
+      try {
+        await invoke("delete_subscription", { subscriptionId: subId });
+        showSuccessToast(t("subscriptionPool.deleteSuccess"));
+        if (selectedSubFilter === subId) {
+          setSelectedSubFilter(null);
+        }
+        await loadSubscriptionData();
+      } catch (e) {
+        showErrorToast(t("subscriptionPool.deleteError"), {
+          description: String(e),
+        });
+      }
+    },
+    [loadSubscriptionData, selectedSubFilter, t],
+  );
+
+  const handleImportNode = useCallback(
+    async (nodeId: string) => {
+      setImportingNodeId(nodeId);
+      try {
+        await invoke("import_pool_node_as_proxy", { nodeId });
+        showSuccessToast(t("subscriptionPool.importNodeSuccess"));
+        await loadSubscriptionData();
+      } catch (e) {
+        showErrorToast(t("subscriptionPool.importError"), {
+          description: String(e),
+        });
+      } finally {
+        setImportingNodeId(null);
+      }
+    },
+    [loadSubscriptionData, t],
+  );
+
+  const handleImportAllNodes = useCallback(
+    async (subId: string) => {
+      setImportingAllSubId(subId);
+      try {
+        const ids = await invoke<string[]>("import_all_supported_pool_nodes", {
+          subscriptionId: subId,
+        });
+        showSuccessToast(
+          t("subscriptionPool.importSuccess", { count: ids.length }),
+        );
+        await loadSubscriptionData();
+      } catch (e) {
+        showErrorToast(t("subscriptionPool.importError"), {
+          description: String(e),
+        });
+      } finally {
+        setImportingAllSubId(null);
+      }
+    },
+    [loadSubscriptionData, t],
+  );
+
+  const handleTestNodeLatency = useCallback(
+    async (nodeId: string) => {
+      setTestingNodeId(nodeId);
+      try {
+        const ms = await invoke<number>("test_pool_node_latency", { nodeId });
+        showSuccessToast(t("subscriptionPool.latencyMs", { ms }));
+        await loadSubscriptionData();
+      } catch (e) {
+        showErrorToast(t("subscriptionPool.refreshError"), {
+          description: String(e),
+        });
+      } finally {
+        setTestingNodeId(null);
+      }
+    },
+    [loadSubscriptionData, t],
+  );
+
+  const handleTestAllNodes = useCallback(
+    async (subscriptionId: string) => {
+      setTestingAllSubId(subscriptionId);
+      try {
+        const [success, fail] = await invoke<[number, number]>(
+          "test_all_pool_nodes",
+          { subscriptionId },
+        );
+        showSuccessToast(
+          t("subscriptionPool.testAllResult", { success, fail }),
+        );
+        await loadSubscriptionData();
+      } catch (e) {
+        showErrorToast(t("subscriptionPool.refreshError"), {
+          description: String(e),
+        });
+      } finally {
+        setTestingAllSubId(null);
+      }
+    },
+    [loadSubscriptionData, t],
+  );
+
+  const nativelySupportedProtocols = new Set([
+    "http",
+    "https",
+    "socks5",
+    "socks4",
+    "ss",
+  ]);
+
+  const isNodeImportable = (node: PoolNode) => {
+    if (!nativelySupportedProtocols.has(node.protocol)) return false;
+    if (node.extra?.plugin) return false;
+    return true;
+  };
+
+  const filteredPoolNodes = selectedSubFilter
+    ? poolNodes.filter((n) => n.subscription_id === selectedSubFilter)
+    : poolNodes;
 
   // Proxy handlers
   const handleDeleteProxy = useCallback((proxy: StoredProxy) => {
@@ -408,6 +635,9 @@ export function ProxyManagementDialog({
                 </TabsTrigger>
                 <TabsTrigger value="vpns" className="flex-1">
                   {t("proxies.management.tabVpns")}
+                </TabsTrigger>
+                <TabsTrigger value="subscriptions" className="flex-1">
+                  {t("proxies.management.tabSubscriptions")}
                 </TabsTrigger>
               </TabsList>
 
@@ -830,6 +1060,356 @@ export function ProxyManagementDialog({
                                         )}
                                       </TooltipContent>
                                     </Tooltip>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="subscriptions" className="mt-4">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <RippleButton
+                      size="sm"
+                      onClick={() => setShowSubAddForm(!showSubAddForm)}
+                    >
+                      <LuPlus className="mr-1 h-4 w-4" />
+                      {t("subscriptionPool.addSubscription")}
+                    </RippleButton>
+                  </div>
+
+                  {showSubAddForm && (
+                    <div className="space-y-3 rounded-lg border p-4">
+                      <div className="space-y-2">
+                        <Label>{t("subscriptionPool.subscriptionName")}</Label>
+                        <Input
+                          placeholder={t("subscriptionPool.namePlaceholder")}
+                          value={newSubName}
+                          onChange={(e) => setNewSubName(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t("subscriptionPool.subscriptionUrl")}</Label>
+                        <Input
+                          placeholder={t(
+                            "subscriptionPool.subscriptionUrlPlaceholder",
+                          )}
+                          value={newSubUrl}
+                          onChange={(e) => setNewSubUrl(e.target.value)}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <RippleButton
+                          size="sm"
+                          onClick={handleAddSubscription}
+                          disabled={
+                            isAddingSub ||
+                            !newSubName.trim() ||
+                            !newSubUrl.trim()
+                          }
+                        >
+                          {isAddingSub
+                            ? t("subscriptionPool.testing")
+                            : t("subscriptionPool.addSubscription")}
+                        </RippleButton>
+                        <RippleButton
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setShowSubAddForm(false)}
+                        >
+                          {t("common.buttons.cancel")}
+                        </RippleButton>
+                      </div>
+                    </div>
+                  )}
+
+                  {subscriptions.length > 0 && (
+                    <div className="space-y-3">
+                      {subscriptions.map((sub) => (
+                        <div
+                          key={sub.id}
+                          className="flex items-center justify-between rounded-lg border p-3"
+                        >
+                          <div className="space-y-0.5 min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm truncate">
+                                {sub.name}
+                              </span>
+                              <Badge variant="secondary" className="shrink-0">
+                                {t("subscriptionPool.nodeCount", {
+                                  count: sub.node_count,
+                                })}
+                              </Badge>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {t("subscriptionPool.lastUpdated", {
+                                time: new Date(
+                                  sub.updated_at * 1000,
+                                ).toLocaleString(),
+                              })}
+                            </div>
+                            {sub.last_fetch_error && (
+                              <div className="text-xs text-destructive">
+                                {t("subscriptionPool.fetchError", {
+                                  error: sub.last_fetch_error,
+                                })}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => handleImportAllNodes(sub.id)}
+                                  disabled={importingAllSubId === sub.id}
+                                >
+                                  <LuDownload className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {t("subscriptionPool.importAll")}
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => handleTestAllNodes(sub.id)}
+                                  disabled={testingAllSubId === sub.id}
+                                >
+                                  <LuSignal
+                                    className={`h-4 w-4 ${testingAllSubId === sub.id ? "animate-pulse" : ""}`}
+                                  />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {t("subscriptionPool.testAll")}
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() =>
+                                    handleRefreshSubscription(sub.id)
+                                  }
+                                  disabled={refreshingSubId === sub.id}
+                                >
+                                  <LuRefreshCw
+                                    className={`h-4 w-4 ${refreshingSubId === sub.id ? "animate-spin" : ""}`}
+                                  />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {t("subscriptionPool.refresh")}
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => {
+                                    setSelectedSubFilter(
+                                      selectedSubFilter === sub.id
+                                        ? null
+                                        : sub.id,
+                                    );
+                                  }}
+                                >
+                                  <LuList
+                                    className={`h-4 w-4 ${selectedSubFilter === sub.id ? "text-primary" : ""}`}
+                                  />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {t("subscriptionPool.nodes")}
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive"
+                                  onClick={() =>
+                                    handleDeleteSubscription(sub.id)
+                                  }
+                                >
+                                  <LuTrash2 className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {t("subscriptionPool.delete")}
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {subscriptions.length === 0 && !showSubAddForm && (
+                    <div className="py-8 text-center text-sm text-muted-foreground">
+                      {t("subscriptionPool.noSubscriptions")}
+                    </div>
+                  )}
+
+                  {filteredPoolNodes.length > 0 && (
+                    <div>
+                      {subscriptions.length > 1 && (
+                        <div className="flex items-center gap-2 flex-wrap mb-3">
+                          <Button
+                            variant={
+                              selectedSubFilter === null ? "default" : "outline"
+                            }
+                            size="sm"
+                            onClick={() => setSelectedSubFilter(null)}
+                          >
+                            {t("subscriptionPool.allNodes")}
+                          </Button>
+                          {subscriptions.map((sub) => (
+                            <Button
+                              key={sub.id}
+                              variant={
+                                selectedSubFilter === sub.id
+                                  ? "default"
+                                  : "outline"
+                              }
+                              size="sm"
+                              onClick={() => setSelectedSubFilter(sub.id)}
+                            >
+                              {sub.name}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>
+                              {t("subscriptionPool.protocol")}
+                            </TableHead>
+                            <TableHead>
+                              {t("subscriptionPool.server")}
+                            </TableHead>
+                            <TableHead>
+                              {t("subscriptionPool.status")}
+                            </TableHead>
+                            <TableHead>
+                              {t("subscriptionPool.latency")}
+                            </TableHead>
+                            <TableHead className="text-right">
+                              {t("subscriptionPool.actions")}
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredPoolNodes.map((node) => {
+                            const isSupported = isNodeImportable(node);
+                            const isImported = !!node.stored_proxy_id;
+
+                            return (
+                              <TableRow key={node.id}>
+                                <TableCell>
+                                  <Badge
+                                    variant={
+                                      isSupported ? "default" : "secondary"
+                                    }
+                                  >
+                                    {node.protocol.toUpperCase()}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="cursor-default text-sm">
+                                        {node.name}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      {node.server}:{node.port}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TableCell>
+                                <TableCell>
+                                  {isImported ? (
+                                    <Badge
+                                      variant="outline"
+                                      className="border-success text-success"
+                                    >
+                                      {t("subscriptionPool.imported")}
+                                    </Badge>
+                                  ) : isSupported ? (
+                                    <Badge variant="outline">
+                                      {t("subscriptionPool.supported")}
+                                    </Badge>
+                                  ) : (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Badge
+                                          variant="outline"
+                                          className="border-warning text-warning"
+                                        >
+                                          {t("subscriptionPool.unsupported")}
+                                        </Badge>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        {t("subscriptionPool.requiresGateway")}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-sm">
+                                  {node.last_latency_ms != null
+                                    ? t("subscriptionPool.latencyMs", {
+                                        ms: node.last_latency_ms,
+                                      })
+                                    : "-"}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    {isSupported && !isImported && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() =>
+                                          handleImportNode(node.id)
+                                        }
+                                        disabled={importingNodeId === node.id}
+                                      >
+                                        <LuDownload className="mr-1 h-3 w-3" />
+                                        {t("subscriptionPool.importNode")}
+                                      </Button>
+                                    )}
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() =>
+                                        handleTestNodeLatency(node.id)
+                                      }
+                                      disabled={testingNodeId === node.id}
+                                    >
+                                      <LuSignal className="mr-1 h-3 w-3" />
+                                      {testingNodeId === node.id
+                                        ? t("subscriptionPool.testing")
+                                        : t("subscriptionPool.testLatency")}
+                                    </Button>
                                   </div>
                                 </TableCell>
                               </TableRow>

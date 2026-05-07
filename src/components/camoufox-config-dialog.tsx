@@ -50,7 +50,7 @@ export function CamoufoxConfigDialog({
   onSave,
   onSaveWayfern,
   isRunning = false,
-  crossOsUnlocked = false,
+  crossOsUnlocked = true,
 }: CamoufoxConfigDialogProps) {
   const { t } = useTranslation();
   // Use union type to support both Camoufox and Wayfern configs

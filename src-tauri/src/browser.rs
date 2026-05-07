@@ -1198,6 +1198,7 @@ mod tests {
       browser: "wayfern".to_string(),
       version: "1.0.0".to_string(),
       proxy_id: None,
+      proxy_source: None,
       proxy_binding_mode: crate::profile::ProxyBindingMode::FixedNode,
       vpn_id: None,
       launch_hook: None,
@@ -1219,6 +1220,7 @@ mod tests {
       created_by_id: None,
       created_by_email: None,
       dns_blocklist: None,
+      deleted_at: None,
     };
 
     let path = profile.get_profile_data_path(&profiles_dir);

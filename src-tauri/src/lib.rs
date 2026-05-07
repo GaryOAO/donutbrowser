@@ -56,8 +56,10 @@ pub mod daemon_ws;
 pub mod events;
 mod mcp_server;
 mod operation_log;
+mod subscription_pool;
 mod tag_manager;
 mod team_lock;
+mod template_manager;
 mod version_updater;
 pub mod vpn;
 pub mod vpn_worker_runner;
@@ -186,6 +188,39 @@ impl<R: Runtime> WindowExt for WebviewWindow<R> {
 
     Ok(())
   }
+}
+
+#[tauri::command]
+async fn set_profile_proxy_source(
+  profile_id: String,
+  proxy_source: Option<profile::types::ProxySource>,
+) -> Result<(), String> {
+  proxy_manager::PROXY_MANAGER.set_profile_proxy_source(&profile_id, proxy_source)
+}
+
+#[tauri::command]
+async fn resolve_profile_proxy_info(
+  profile_id: String,
+) -> Result<Option<proxy_manager::ResolvedProxyInfo>, String> {
+  use crate::profile::manager::PROFILE_MANAGER;
+  let profiles = PROFILE_MANAGER
+    .list_profiles()
+    .map_err(|e| format!("Failed to list profiles: {e}"))?;
+  let profile_uuid =
+    uuid::Uuid::parse_str(&profile_id).map_err(|_| format!("Invalid profile ID: {profile_id}"))?;
+  let profile = profiles
+    .into_iter()
+    .find(|p| p.id == profile_uuid)
+    .ok_or_else(|| format!("Profile '{profile_id}' not found"))?;
+  Ok(proxy_manager::resolve_proxy_info(&profile))
+}
+
+#[tauri::command]
+async fn batch_delete_stored_proxies(
+  app_handle: tauri::AppHandle,
+  proxy_ids: Vec<String>,
+) -> Result<usize, String> {
+  proxy_manager::PROXY_MANAGER.batch_delete_stored_proxies(proxy_ids, &app_handle)
 }
 
 #[tauri::command]
@@ -1201,6 +1236,7 @@ async fn generate_sample_fingerprint(
     version: version.clone(),
     process_id: None,
     proxy_id: None,
+    proxy_source: None,
     proxy_binding_mode: crate::profile::ProxyBindingMode::FixedNode,
     vpn_id: None,
     launch_hook: None,
@@ -1221,6 +1257,7 @@ async fn generate_sample_fingerprint(
     created_by_id: None,
     created_by_email: None,
     dns_blocklist: None,
+    deleted_at: None,
   };
 
   if browser == "camoufox" {
@@ -1244,6 +1281,136 @@ async fn generate_sample_fingerprint(
       "Unsupported browser for fingerprint generation: {browser}"
     ))
   }
+}
+
+// --- Subscription Pool commands ---
+
+#[tauri::command]
+async fn list_subscriptions() -> Result<Vec<subscription_pool::Subscription>, String> {
+  Ok(subscription_pool::SubscriptionPoolManager::instance().list_subscriptions())
+}
+
+#[tauri::command]
+async fn list_pool_nodes(
+  subscription_id: Option<String>,
+) -> Result<Vec<subscription_pool::PoolNode>, String> {
+  Ok(subscription_pool::SubscriptionPoolManager::instance().list_nodes(subscription_id.as_deref()))
+}
+
+#[tauri::command]
+async fn add_subscription(
+  name: String,
+  url: String,
+) -> Result<subscription_pool::Subscription, String> {
+  subscription_pool::SubscriptionPoolManager::instance()
+    .add_subscription(name, url)
+    .await
+}
+
+#[tauri::command]
+async fn refresh_subscription(
+  subscription_id: String,
+) -> Result<subscription_pool::Subscription, String> {
+  subscription_pool::SubscriptionPoolManager::instance()
+    .refresh_subscription(&subscription_id)
+    .await
+}
+
+#[tauri::command]
+async fn delete_subscription(subscription_id: String) -> Result<(), String> {
+  subscription_pool::SubscriptionPoolManager::instance().delete_subscription(&subscription_id)
+}
+
+#[tauri::command]
+async fn import_pool_node_as_proxy(
+  node_id: String,
+) -> Result<crate::proxy_manager::StoredProxy, String> {
+  subscription_pool::SubscriptionPoolManager::instance().import_node_as_proxy(&node_id)
+}
+
+#[tauri::command]
+async fn import_all_supported_pool_nodes(subscription_id: String) -> Result<Vec<String>, String> {
+  subscription_pool::SubscriptionPoolManager::instance()
+    .import_all_supported_nodes(&subscription_id)
+}
+
+#[tauri::command]
+async fn test_pool_node_latency(node_id: String) -> Result<u64, String> {
+  subscription_pool::SubscriptionPoolManager::instance()
+    .test_node_latency(&node_id)
+    .await
+}
+
+#[tauri::command]
+async fn test_all_pool_nodes(subscription_id: String) -> Result<(usize, usize), String> {
+  subscription_pool::SubscriptionPoolManager::instance()
+    .test_all_nodes_in_subscription(&subscription_id)
+    .await
+}
+
+#[tauri::command]
+async fn list_templates() -> Result<Vec<template_manager::ProfileTemplate>, String> {
+  Ok(template_manager::TemplateManager::instance().list_templates())
+}
+
+#[tauri::command]
+async fn get_template(id: String) -> Result<template_manager::ProfileTemplate, String> {
+  template_manager::TemplateManager::instance()
+    .get_template(&id)
+    .ok_or_else(|| "Template not found".to_string())
+}
+
+#[tauri::command]
+async fn create_template(
+  template: template_manager::ProfileTemplate,
+) -> Result<template_manager::ProfileTemplate, String> {
+  template_manager::TemplateManager::instance().create_template(template)
+}
+
+#[tauri::command]
+async fn update_template(
+  id: String,
+  name: String,
+) -> Result<template_manager::ProfileTemplate, String> {
+  template_manager::TemplateManager::instance().update_template(&id, name)
+}
+
+#[tauri::command]
+async fn delete_template(id: String) -> Result<(), String> {
+  template_manager::TemplateManager::instance().delete_template(&id)
+}
+
+#[tauri::command]
+async fn create_template_from_profile(
+  app_handle: tauri::AppHandle,
+  profile_id: String,
+  template_name: String,
+) -> Result<template_manager::ProfileTemplate, String> {
+  let _ = &app_handle;
+  let profiles = crate::profile::ProfileManager::instance()
+    .list_profiles()
+    .map_err(|e| e.to_string())?;
+  let profile = profiles
+    .iter()
+    .find(|p| p.id.to_string() == profile_id)
+    .ok_or_else(|| "Profile not found".to_string())?;
+  let template = template_manager::ProfileTemplate {
+    id: String::new(),
+    name: template_name,
+    browser: profile.browser.clone(),
+    version: profile.version.clone(),
+    release_type: profile.release_type.clone(),
+    proxy_binding_mode: profile.proxy_binding_mode,
+    camoufox_config: profile.camoufox_config.clone(),
+    wayfern_config: profile.wayfern_config.clone(),
+    ephemeral: profile.ephemeral,
+    dns_blocklist: profile.dns_blocklist.clone(),
+    launch_hook: profile.launch_hook.clone(),
+    extension_group_id: profile.extension_group_id.clone(),
+    created_at: 0,
+    updated_at: 0,
+  };
+  template_manager::TemplateManager::instance().create_template(template)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -2186,6 +2353,32 @@ pub fn run() {
       // DNS blocklist commands
       dns_blocklist::get_dns_blocklist_cache_status,
       dns_blocklist::refresh_dns_blocklists,
+      // Trash commands
+      profile::manager::trash_profile,
+      profile::manager::restore_profile,
+      profile::manager::list_trashed_profiles,
+      profile::manager::empty_trash,
+      // Template commands
+      list_templates,
+      get_template,
+      create_template,
+      update_template,
+      delete_template,
+      create_template_from_profile,
+      // Subscription pool commands
+      list_subscriptions,
+      list_pool_nodes,
+      add_subscription,
+      refresh_subscription,
+      delete_subscription,
+      import_pool_node_as_proxy,
+      import_all_supported_pool_nodes,
+      test_pool_node_latency,
+      test_all_pool_nodes,
+      // Proxy source commands
+      set_profile_proxy_source,
+      resolve_profile_proxy_info,
+      batch_delete_stored_proxies,
     ])
     .build(tauri::generate_context!())
     .expect("error while building tauri application")
@@ -2237,6 +2430,30 @@ mod tests {
       "clash_switch_proxy",
       "clash_test_latency",
       "clash_subscription_status",
+      // Template and trash commands (frontend integration pending).
+      "list_templates",
+      "get_template",
+      "create_template",
+      "update_template",
+      "delete_template",
+      "create_template_from_profile",
+      "trash_profile",
+      "restore_profile",
+      "list_trashed_profiles",
+      "empty_trash",
+      // Subscription pool commands (frontend integration in progress).
+      "list_subscriptions",
+      "list_pool_nodes",
+      "add_subscription",
+      "refresh_subscription",
+      "delete_subscription",
+      "import_pool_node_as_proxy",
+      "import_all_supported_pool_nodes",
+      "test_pool_node_latency",
+      "test_all_pool_nodes",
+      "set_profile_proxy_source",
+      "resolve_profile_proxy_info",
+      "batch_delete_stored_proxies",
     ];
 
     // Extract command names from the generate_handler! macro in this file

@@ -564,6 +564,7 @@ impl ProfileImporter {
           browser: mapped.to_string(),
           version: version.clone(),
           proxy_id: proxy_id.clone(),
+          proxy_source: None,
           proxy_binding_mode: ProxyBindingMode::FixedNode,
           vpn_id: None,
           launch_hook: None,
@@ -585,6 +586,7 @@ impl ProfileImporter {
           created_by_id: None,
           created_by_email: None,
           dns_blocklist: None,
+          deleted_at: None,
         };
 
         match self
@@ -645,6 +647,7 @@ impl ProfileImporter {
           browser: mapped.to_string(),
           version: version.clone(),
           proxy_id: proxy_id.clone(),
+          proxy_source: None,
           proxy_binding_mode: ProxyBindingMode::FixedNode,
           vpn_id: None,
           launch_hook: None,
@@ -666,6 +669,7 @@ impl ProfileImporter {
           created_by_id: None,
           created_by_email: None,
           dns_blocklist: None,
+          deleted_at: None,
         };
 
         match self
@@ -697,6 +701,7 @@ impl ProfileImporter {
       browser: mapped.to_string(),
       version,
       proxy_id,
+      proxy_source: None,
       proxy_binding_mode: ProxyBindingMode::FixedNode,
       vpn_id: None,
       launch_hook: None,
@@ -718,6 +723,7 @@ impl ProfileImporter {
       created_by_id: None,
       created_by_email: None,
       dns_blocklist: None,
+      deleted_at: None,
     };
 
     self.profile_manager.save_profile(&profile)?;

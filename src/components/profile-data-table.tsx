@@ -879,8 +879,8 @@ export function ProfilesDataTable({
   onAssignExtensionGroup,
   onOpenProfileSyncDialog,
   onToggleProfileSync,
-  crossOsUnlocked = false,
-  syncUnlocked = false,
+  crossOsUnlocked = true,
+  syncUnlocked = true,
   getProfileSyncInfo,
   onLaunchWithSync,
 }: ProfilesDataTableProps) {

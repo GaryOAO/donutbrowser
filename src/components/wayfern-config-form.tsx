@@ -64,7 +64,7 @@ export function WayfernConfigForm({
   isCreating = false,
   forceAdvanced = false,
   readOnly = false,
-  crossOsUnlocked = false,
+  crossOsUnlocked = true,
   limitedMode = false,
   profileVersion,
   profileBrowser,

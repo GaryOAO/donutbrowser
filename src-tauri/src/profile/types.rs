@@ -3,6 +3,13 @@ use crate::wayfern_manager::WayfernConfig;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "type", content = "id")]
+pub enum ProxySource {
+  StoredProxy(String),
+  SubscriptionNode(String),
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
 #[allow(dead_code)]
 pub enum SyncStatus {
@@ -37,7 +44,9 @@ pub struct BrowserProfile {
   pub browser: String,
   pub version: String,
   #[serde(default)]
-  pub proxy_id: Option<String>, // Reference to stored proxy
+  pub proxy_id: Option<String>,
+  #[serde(default)]
+  pub proxy_source: Option<ProxySource>,
   #[serde(default)]
   pub proxy_binding_mode: ProxyBindingMode,
   #[serde(default)]
@@ -80,6 +89,8 @@ pub struct BrowserProfile {
   pub created_by_email: Option<String>,
   #[serde(default)]
   pub dns_blocklist: Option<String>,
+  #[serde(default)]
+  pub deleted_at: Option<u64>,
 }
 
 pub fn default_release_type() -> String {

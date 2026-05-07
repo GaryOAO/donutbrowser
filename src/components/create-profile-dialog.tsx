@@ -114,7 +114,7 @@ export function CreateProfileDialog({
   onClose,
   onCreateProfile,
   selectedGroupId,
-  crossOsUnlocked = false,
+  crossOsUnlocked = true,
 }: CreateProfileDialogProps) {
   const { t } = useTranslation();
   const [profileName, setProfileName] = useState("");

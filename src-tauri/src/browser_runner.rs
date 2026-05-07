@@ -158,6 +158,7 @@ impl BrowserRunner {
     &self,
     profile: &BrowserProfile,
   ) -> Result<Option<ProxySettings>, String> {
+    use crate::profile::types::ProxySource;
     let started_at = operation_start();
     if let Some(proxy_settings) = self.resolve_launch_hook_proxy(profile).await? {
       record_operation(
@@ -170,6 +171,54 @@ impl BrowserRunner {
         None,
       );
       return Ok(Some(proxy_settings));
+    }
+
+    if let Some(source) = &profile.proxy_source {
+      let result = match source {
+        ProxySource::StoredProxy(id) => {
+          self
+            .resolve_proxy_with_refresh(Some(id), Some(&profile.id.to_string()))
+            .await
+        }
+        ProxySource::SubscriptionNode(node_id) => {
+          let settings = crate::subscription_pool::SubscriptionPoolManager::instance()
+            .get_node(node_id)
+            .and_then(|n| n.to_proxy_settings());
+          Ok(settings)
+        }
+      };
+      let log_id = match source {
+        ProxySource::StoredProxy(id) => Some(id.clone()),
+        ProxySource::SubscriptionNode(id) => Some(id.clone()),
+      };
+      match result {
+        Ok(proxy) => {
+          if let Some(proxy) = &proxy {
+            record_operation(
+              Some(profile.id.to_string()),
+              log_id,
+              Some(proxy.host.clone()),
+              "assign_proxy",
+              "success",
+              started_at,
+              None,
+            );
+          }
+          return Ok(proxy);
+        }
+        Err(error) => {
+          record_operation(
+            Some(profile.id.to_string()),
+            log_id,
+            None,
+            "assign_proxy",
+            "failed",
+            started_at,
+            Some(error.clone()),
+          );
+          return Err(error);
+        }
+      }
     }
 
     let selected = PROXY_MANAGER.select_proxy_for_profile(

@@ -119,7 +119,7 @@ export function ProfileInfoDialog({
   onCloneProfile,
   onDeleteProfile,
   onLaunchWithSync,
-  crossOsUnlocked = false,
+  crossOsUnlocked = true,
   isRunning = false,
   isDisabled = false,
   isCrossOs = false,

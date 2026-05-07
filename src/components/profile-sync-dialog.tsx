@@ -36,11 +36,7 @@ export function ProfileSyncDialog({
 }: ProfileSyncDialogProps) {
   const { t } = useTranslation();
   const { user: cloudUser } = useCloudAuth();
-  const isCloudSyncEligible =
-    cloudUser != null &&
-    cloudUser.plan !== "free" &&
-    (cloudUser.subscriptionStatus === "active" ||
-      cloudUser.planPeriod === "lifetime");
+  const isCloudSyncEligible = cloudUser != null;
   // Encryption available to everyone except team members who aren't owners
   const canUseEncryption =
     cloudUser == null ||

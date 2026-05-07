@@ -6,6 +6,18 @@ export interface ProxySettings {
   password?: string;
 }
 
+export type ProxySource =
+  | { type: "StoredProxy"; id: string }
+  | { type: "SubscriptionNode"; id: string };
+
+export interface ResolvedProxyInfo {
+  source_type: string;
+  name: string;
+  protocol: string;
+  server: string;
+  port: number;
+}
+
 export interface TableSortingSettings {
   column: string; // "name", "note", "status"
   direction: string; // "asc" or "desc"
@@ -16,7 +28,8 @@ export interface BrowserProfile {
   name: string;
   browser: string;
   version: string;
-  proxy_id?: string; // Reference to stored proxy
+  proxy_id?: string;
+  proxy_source?: ProxySource;
   proxy_binding_mode?: ProxyBindingMode;
   vpn_id?: string; // Reference to stored VPN config
   launch_hook?: string;
@@ -705,4 +718,43 @@ export interface VpnStatus {
   bytes_sent?: number;
   bytes_received?: number;
   last_handshake?: number;
+}
+
+export type PoolNodeProtocol =
+  | "http"
+  | "https"
+  | "socks5"
+  | "socks4"
+  | "ss"
+  | "vmess"
+  | "vless"
+  | "trojan"
+  | "hysteria"
+  | "hysteria2"
+  | "tuic"
+  | "unknown";
+
+export interface PoolNode {
+  id: string;
+  subscription_id: string;
+  name: string;
+  protocol: PoolNodeProtocol;
+  server: string;
+  port: number;
+  username?: string;
+  password?: string;
+  extra: Record<string, unknown>;
+  stored_proxy_id?: string;
+  last_latency_ms?: number;
+  available?: boolean;
+}
+
+export interface Subscription {
+  id: string;
+  name: string;
+  url: string;
+  node_count: number;
+  created_at: number;
+  updated_at: number;
+  last_fetch_error?: string;
 }

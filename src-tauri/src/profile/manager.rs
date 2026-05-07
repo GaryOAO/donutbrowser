@@ -170,6 +170,7 @@ impl ProfileManager {
           browser: browser.to_string(),
           version: version.to_string(),
           proxy_id: proxy_id.clone(),
+          proxy_source: None,
           proxy_binding_mode: ProxyBindingMode::FixedNode,
           vpn_id: None,
           launch_hook: launch_hook.clone(),
@@ -191,6 +192,7 @@ impl ProfileManager {
           created_by_id: None,
           created_by_email: None,
           dns_blocklist: None,
+          deleted_at: None,
         };
 
         match self
@@ -272,6 +274,7 @@ impl ProfileManager {
           browser: browser.to_string(),
           version: version.to_string(),
           proxy_id: proxy_id.clone(),
+          proxy_source: None,
           proxy_binding_mode: ProxyBindingMode::FixedNode,
           vpn_id: None,
           launch_hook: launch_hook.clone(),
@@ -293,6 +296,7 @@ impl ProfileManager {
           created_by_id: None,
           created_by_email: None,
           dns_blocklist: None,
+          deleted_at: None,
         };
 
         match self
@@ -328,6 +332,7 @@ impl ProfileManager {
       browser: browser.to_string(),
       version: version.to_string(),
       proxy_id: proxy_id.clone(),
+      proxy_source: None,
       proxy_binding_mode,
       vpn_id: vpn_id.clone(),
       launch_hook,
@@ -349,6 +354,7 @@ impl ProfileManager {
       created_by_id: None,
       created_by_email: None,
       dns_blocklist,
+      deleted_at: None,
     };
 
     // Save profile info
@@ -404,7 +410,7 @@ impl ProfileManager {
     Ok(())
   }
 
-  pub fn list_profiles(&self) -> Result<Vec<BrowserProfile>, Box<dyn std::error::Error>> {
+  fn list_all_profiles_raw(&self) -> Result<Vec<BrowserProfile>, Box<dyn std::error::Error>> {
     let profiles_dir = self.get_profiles_dir();
     if !profiles_dir.exists() {
       return Ok(vec![]);
@@ -415,15 +421,12 @@ impl ProfileManager {
       let entry = entry?;
       let path = entry.path();
 
-      // Look for UUID directories containing metadata.json
       if path.is_dir() {
         let metadata_file = path.join("metadata.json");
         if metadata_file.exists() {
           let content = fs::read_to_string(&metadata_file)?;
           let mut profile: BrowserProfile = serde_json::from_str(&content)?;
 
-          // Backfill host_os from browser config for profiles created before
-          // the field existed (or synced without it).
           if profile.host_os.is_none() {
             let inferred_os = profile.resolved_os().map(str::to_string);
             if let Some(os) = inferred_os {
@@ -440,6 +443,86 @@ impl ProfileManager {
     }
 
     Ok(profiles)
+  }
+
+  pub fn list_profiles(&self) -> Result<Vec<BrowserProfile>, Box<dyn std::error::Error>> {
+    let all = self.list_all_profiles_raw()?;
+    Ok(all.into_iter().filter(|p| p.deleted_at.is_none()).collect())
+  }
+
+  pub fn list_trashed_profiles(&self) -> Result<Vec<BrowserProfile>, Box<dyn std::error::Error>> {
+    let all = self.list_all_profiles_raw()?;
+    Ok(all.into_iter().filter(|p| p.deleted_at.is_some()).collect())
+  }
+
+  pub fn trash_profile(
+    &self,
+    app_handle: &tauri::AppHandle,
+    profile_id: &str,
+  ) -> Result<(), Box<dyn std::error::Error>> {
+    let profile_uuid =
+      uuid::Uuid::parse_str(profile_id).map_err(|_| format!("Invalid profile ID: {profile_id}"))?;
+    let profiles = self.list_all_profiles_raw()?;
+    let mut profile = profiles
+      .into_iter()
+      .find(|p| p.id == profile_uuid)
+      .ok_or_else(|| format!("Profile with ID '{profile_id}' not found"))?;
+
+    if profile.process_id.is_some() && !profile.is_cross_os() {
+      return Err("Cannot trash profile while browser is running".into());
+    }
+
+    profile.deleted_at = Some(
+      std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs(),
+    );
+    self.save_profile(&profile)?;
+
+    let _ = events::emit_empty("profiles-changed");
+
+    log::info!(
+      "Profile '{}' (ID: {}) moved to trash",
+      profile.name,
+      profile_id
+    );
+
+    let _ = app_handle; // keep borrow checker happy
+    Ok(())
+  }
+
+  pub fn restore_profile(&self, profile_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let profile_uuid =
+      uuid::Uuid::parse_str(profile_id).map_err(|_| format!("Invalid profile ID: {profile_id}"))?;
+    let profiles = self.list_all_profiles_raw()?;
+    let mut profile = profiles
+      .into_iter()
+      .find(|p| p.id == profile_uuid && p.deleted_at.is_some())
+      .ok_or_else(|| format!("Trashed profile '{profile_id}' not found"))?;
+
+    profile.deleted_at = None;
+    self.save_profile(&profile)?;
+
+    let _ = events::emit_empty("profiles-changed");
+    log::info!(
+      "Profile '{}' (ID: {}) restored from trash",
+      profile.name,
+      profile_id
+    );
+    Ok(())
+  }
+
+  pub fn empty_trash(
+    &self,
+    app_handle: &tauri::AppHandle,
+  ) -> Result<u32, Box<dyn std::error::Error>> {
+    let trashed = self.list_trashed_profiles()?;
+    let count = trashed.len() as u32;
+    for profile in &trashed {
+      self.delete_profile(app_handle, &profile.id.to_string())?;
+    }
+    Ok(count)
   }
 
   pub fn rename_profile(
@@ -976,6 +1059,7 @@ impl ProfileManager {
       browser: source.browser,
       version: source.version,
       proxy_id: source.proxy_id,
+      proxy_source: source.proxy_source,
       proxy_binding_mode: source.proxy_binding_mode,
       vpn_id: source.vpn_id,
       launch_hook: source.launch_hook,
@@ -997,6 +1081,7 @@ impl ProfileManager {
       created_by_id: None,
       created_by_email: None,
       dns_blocklist: source.dns_blocklist,
+      deleted_at: None,
     };
 
     self.save_profile(&new_profile)?;
@@ -2346,6 +2431,34 @@ pub fn delete_profile(app_handle: tauri::AppHandle, profile_id: String) -> Resul
     .map_err(|e| format!("Failed to delete profile: {e}"))
 }
 
+#[tauri::command]
+pub fn trash_profile(app_handle: tauri::AppHandle, profile_id: String) -> Result<(), String> {
+  ProfileManager::instance()
+    .trash_profile(&app_handle, &profile_id)
+    .map_err(|e| format!("Failed to trash profile: {e}"))
+}
+
+#[tauri::command]
+pub fn restore_profile(profile_id: String) -> Result<(), String> {
+  ProfileManager::instance()
+    .restore_profile(&profile_id)
+    .map_err(|e| format!("Failed to restore profile: {e}"))
+}
+
+#[tauri::command]
+pub fn list_trashed_profiles() -> Result<Vec<BrowserProfile>, String> {
+  ProfileManager::instance()
+    .list_trashed_profiles()
+    .map_err(|e| format!("Failed to list trashed profiles: {e}"))
+}
+
+#[tauri::command]
+pub fn empty_trash(app_handle: tauri::AppHandle) -> Result<u32, String> {
+  ProfileManager::instance()
+    .empty_trash(&app_handle)
+    .map_err(|e| format!("Failed to empty trash: {e}"))
+}
+
 lazy_static::lazy_static! {
-  static ref PROFILE_MANAGER: ProfileManager = ProfileManager::new();
+  pub static ref PROFILE_MANAGER: ProfileManager = ProfileManager::new();
 }

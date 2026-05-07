@@ -42,7 +42,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCloudAuth } from "@/hooks/use-cloud-auth";
-import { useCommercialTrial } from "@/hooks/use-commercial-trial";
 import { useLanguage } from "@/hooks/use-language";
 import type { PermissionType } from "@/hooks/use-permissions";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -140,7 +139,6 @@ export function SettingsDialog({
     isMicrophoneAccessGranted,
     isCameraAccessGranted,
   } = usePermissions();
-  const { trialStatus } = useCommercialTrial();
   const { user: cloudUser } = useCloudAuth();
   // Encryption is available to everyone except team members who aren't owners
   const canUseEncryption =
@@ -1066,38 +1064,6 @@ export function SettingsDialog({
                   </LoadingButton>
                 </div>
               )}
-            </div>
-
-            {/* Commercial License Section */}
-            <div className="space-y-4">
-              <Label className="text-base font-medium">
-                {t("settings.commercial.title")}
-              </Label>
-
-              <div className="flex items-center justify-between p-3 rounded-md border bg-muted/40">
-                {trialStatus?.type === "Active" ? (
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">
-                      {t("settings.commercial.trialActive", {
-                        days: trialStatus.days_remaining,
-                        hours: trialStatus.hours_remaining,
-                      })}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {t("settings.commercial.trialActiveDescription")}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-warning">
-                      {t("settings.commercial.trialExpired")}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {t("settings.commercial.trialExpiredDescription")}
-                    </p>
-                  </div>
-                )}
-              </div>
             </div>
 
             {/* Advanced Section */}

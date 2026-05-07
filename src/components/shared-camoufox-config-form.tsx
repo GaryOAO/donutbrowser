@@ -129,7 +129,7 @@ export function SharedCamoufoxConfigForm({
   forceAdvanced = false,
   readOnly = false,
   browserType = "camoufox",
-  crossOsUnlocked = false,
+  crossOsUnlocked = true,
   limitedMode = false,
   profileVersion,
   profileBrowser,

@@ -682,6 +682,7 @@ mod tests {
       version: version.to_string(),
       process_id: None,
       proxy_id: None,
+      proxy_source: None,
       proxy_binding_mode: crate::profile::ProxyBindingMode::FixedNode,
       vpn_id: None,
       launch_hook: None,
@@ -702,6 +703,7 @@ mod tests {
       created_by_id: None,
       created_by_email: None,
       dns_blocklist: None,
+      deleted_at: None,
     }
   }
 
