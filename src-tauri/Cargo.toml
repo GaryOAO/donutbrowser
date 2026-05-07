@@ -164,6 +164,10 @@ path = "tests/sync_e2e.rs"
 name = "vpn_integration"
 path = "tests/vpn_integration.rs"
 
+[[test]]
+name = "clash_resilience_integration"
+path = "tests/clash_resilience_integration.rs"
+
 [profile.dev]
 codegen-units = 256
 incremental = true
