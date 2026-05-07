@@ -8,10 +8,61 @@ use crate::platform_browser;
 use crate::profile::{BrowserProfile, ProfileManager};
 use crate::proxy_manager::PROXY_MANAGER;
 use crate::wayfern_manager::{WayfernConfig, WayfernManager};
-use serde::Serialize;
+use futures_util::stream::{self, StreamExt};
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use sysinfo::System;
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum BulkBrowserTaskAction {
+  Start,
+  Stop,
+  ChangeProxy,
+  HealthCheck,
+}
+
+impl BulkBrowserTaskAction {
+  fn as_log_action(self) -> &'static str {
+    match self {
+      Self::Start => "bulk_start",
+      Self::Stop => "bulk_stop",
+      Self::ChangeProxy => "bulk_change_proxy",
+      Self::HealthCheck => "bulk_health_check",
+    }
+  }
+
+  fn max_attempts(self) -> u32 {
+    match self {
+      Self::Start => 2,
+      Self::Stop | Self::ChangeProxy | Self::HealthCheck => 1,
+    }
+  }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BulkBrowserTaskRequest {
+  pub profile_ids: Vec<String>,
+  pub action: BulkBrowserTaskAction,
+  pub proxy_id: Option<String>,
+  pub max_concurrency: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BulkTaskItemResult {
+  pub profile_id: String,
+  pub success: bool,
+  pub retries: u32,
+  pub error_code: Option<String>,
+  pub error_message: Option<String>,
+  pub timestamp: u64,
+  pub proxy_node: Option<String>,
+  pub log: String,
+}
+
 pub struct BrowserRunner {
   pub profile_manager: &'static ProfileManager,
   pub downloaded_browsers_registry: &'static DownloadedBrowsersRegistry,
@@ -2709,6 +2760,151 @@ pub async fn open_url_with_profile(
   browser_runner
     .open_url_with_profile(app_handle, profile_id, url)
     .await
+}
+
+#[tauri::command]
+pub async fn run_bulk_browser_tasks(
+  app_handle: tauri::AppHandle,
+  request: BulkBrowserTaskRequest,
+) -> Result<Vec<BulkTaskItemResult>, String> {
+  let profile_manager = ProfileManager::instance();
+  let profiles = profile_manager
+    .list_profiles()
+    .map_err(|e| format!("Failed to list profiles: {e}"))?;
+
+  let concurrency = request.max_concurrency.unwrap_or(3).clamp(1, 8);
+  let action = request.action;
+  let proxy_id = request.proxy_id.clone();
+
+  let targets = request
+    .profile_ids
+    .into_iter()
+    .enumerate()
+    .map(|(index, id)| {
+      let profile = profiles.iter().find(|p| p.id.to_string() == id).cloned();
+      (index, id, profile)
+    });
+
+  let mut indexed_results = stream::iter(targets.map(|(index, requested_id, profile)| {
+    let app_handle = app_handle.clone();
+    let proxy_id = proxy_id.clone();
+    async move {
+      let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+      let Some(profile) = profile else {
+        return (
+          index,
+          BulkTaskItemResult {
+            profile_id: requested_id,
+            success: false,
+            retries: 0,
+            error_code: Some("PROFILE_NOT_FOUND".to_string()),
+            error_message: Some("Profile not found".to_string()),
+            timestamp,
+            proxy_node: proxy_id,
+            log: "error_code=PROFILE_NOT_FOUND retries=0".to_string(),
+          },
+        );
+      };
+
+      let profile_id = profile.id.to_string();
+      let item_started_at = operation_start();
+      let max_attempts = action.max_attempts();
+      let mut attempts = 0u32;
+      let mut operation = Err("NOT_STARTED".to_string());
+
+      while attempts < max_attempts {
+        attempts += 1;
+        operation = match action {
+          BulkBrowserTaskAction::Start => {
+            launch_browser_profile(app_handle.clone(), profile.clone(), None)
+              .await
+              .map(|_| ())
+          }
+          BulkBrowserTaskAction::Stop => {
+            kill_browser_profile(app_handle.clone(), profile.clone()).await
+          }
+          BulkBrowserTaskAction::ChangeProxy => ProfileManager::instance()
+            .update_profile_proxy(app_handle.clone(), &profile_id, proxy_id.clone())
+            .await
+            .map(|_| ())
+            .map_err(|e| e.to_string()),
+          BulkBrowserTaskAction::HealthCheck => {
+            match ProfileManager::instance()
+              .check_browser_status(app_handle.clone(), &profile)
+              .await
+            {
+              Ok(true) => Ok(()),
+              Ok(false) => Err("BROWSER_NOT_RUNNING".to_string()),
+              Err(error) => Err(error.to_string()),
+            }
+          }
+        };
+
+        if operation.is_ok() {
+          break;
+        }
+      }
+
+      let retries = attempts.saturating_sub(1);
+      let (success, error_code, error_message) = match operation {
+        Ok(()) => (true, None, None),
+        Err(error) => {
+          let code = if error == "BROWSER_NOT_RUNNING" {
+            "BROWSER_NOT_RUNNING"
+          } else {
+            action.as_log_action()
+          };
+          (false, Some(code.to_string()), Some(error))
+        }
+      };
+      let proxy_node = proxy_id.clone().or_else(|| profile.proxy_id.clone());
+      let log = format!(
+        "profile_id={} proxy_node={} error_code={} ts={} retries={}",
+        profile_id,
+        proxy_node.clone().unwrap_or_else(|| "none".to_string()),
+        error_code.clone().unwrap_or_else(|| "OK".to_string()),
+        timestamp,
+        retries
+      );
+      record_operation(
+        Some(profile_id.clone()),
+        profile.proxy_id.clone(),
+        proxy_node.clone(),
+        action.as_log_action(),
+        if success { "success" } else { "failed" },
+        item_started_at,
+        error_message.clone(),
+      );
+
+      (
+        index,
+        BulkTaskItemResult {
+          profile_id,
+          success,
+          retries,
+          error_code,
+          error_message,
+          timestamp,
+          proxy_node,
+          log,
+        },
+      )
+    }
+  }))
+  .buffer_unordered(concurrency)
+  .collect::<Vec<_>>()
+  .await;
+
+  indexed_results.sort_by_key(|(index, _)| *index);
+  let results = indexed_results
+    .into_iter()
+    .map(|(_, result)| result)
+    .collect();
+
+  Ok(results)
 }
 
 // Global singleton instance
