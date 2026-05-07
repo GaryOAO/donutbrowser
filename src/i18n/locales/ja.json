@@ -1682,5 +1682,16 @@
     "requiresGateway": "プロキシゲートウェイが必要 (mihomo/sing-box)",
     "testAll": "全ノードテスト",
     "testAllResult": "{{success}}個到達可能、{{fail}}個到達不能"
+  },
+  "gateway": {
+    "title": "プロキシゲートウェイ",
+    "description": "VLESS、VMess、Trojan、Hysteria、TUICプロトコルに必要です",
+    "notInstalled": "ゲートウェイがインストールされていません",
+    "installed": "ゲートウェイがインストールされています",
+    "install": "ゲートウェイをインストール",
+    "installing": "インストール中...",
+    "installSuccess": "ゲートウェイのインストールに成功しました",
+    "installError": "ゲートウェイのインストールに失敗しました",
+    "runningCount": "{{count}} 個のインスタンスが実行中"
   }
 }

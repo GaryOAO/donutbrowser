@@ -1682,5 +1682,16 @@
     "requiresGateway": "Requires proxy gateway (mihomo/sing-box)",
     "testAll": "Test All Nodes",
     "testAllResult": "{{success}} reachable, {{fail}} unreachable"
+  },
+  "gateway": {
+    "title": "Proxy Gateway",
+    "description": "Required for VLESS, VMess, Trojan, Hysteria, TUIC protocols",
+    "notInstalled": "Gateway not installed",
+    "installed": "Gateway installed",
+    "install": "Install Gateway",
+    "installing": "Installing...",
+    "installSuccess": "Gateway installed successfully",
+    "installError": "Failed to install gateway",
+    "runningCount": "{{count}} instances running"
   }
 }

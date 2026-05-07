@@ -1682,5 +1682,16 @@
     "requiresGateway": "需要代理网关 (mihomo/sing-box)",
     "testAll": "测试所有节点",
     "testAllResult": "{{success}} 个可达，{{fail}} 个不可达"
+  },
+  "gateway": {
+    "title": "代理网关",
+    "description": "VLESS、VMess、Trojan、Hysteria、TUIC 协议需要代理网关",
+    "notInstalled": "代理网关未安装",
+    "installed": "代理网关已安装",
+    "install": "安装代理网关",
+    "installing": "安装中...",
+    "installSuccess": "代理网关安装成功",
+    "installError": "安装代理网关失败",
+    "runningCount": "{{count}} 个实例运行中"
   }
 }

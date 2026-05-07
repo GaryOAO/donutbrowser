@@ -1682,5 +1682,16 @@
     "requiresGateway": "Nécessite une passerelle proxy (mihomo/sing-box)",
     "testAll": "Tester Tous",
     "testAllResult": "{{success}} joignables, {{fail}} injoignables"
+  },
+  "gateway": {
+    "title": "Passerelle Proxy",
+    "description": "Requis pour les protocoles VLESS, VMess, Trojan, Hysteria, TUIC",
+    "notInstalled": "Passerelle non installée",
+    "installed": "Passerelle installée",
+    "install": "Installer la Passerelle",
+    "installing": "Installation...",
+    "installSuccess": "Passerelle installée avec succès",
+    "installError": "Échec de l'installation de la passerelle",
+    "runningCount": "{{count}} instances en cours d'exécution"
   }
 }

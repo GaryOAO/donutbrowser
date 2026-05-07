@@ -187,6 +187,12 @@ export function ProxyManagementDialog({
   );
   const [testingAllSubId, setTestingAllSubId] = useState<string | null>(null);
 
+  // Gateway state
+  const [gatewayInstalled, setGatewayInstalled] = useState<boolean | null>(
+    null,
+  );
+  const [isInstallingGateway, setIsInstallingGateway] = useState(false);
+
   const { storedProxies: rawProxies, proxyUsage, isLoading } = useProxyEvents();
   const { vpnConfigs, vpnUsage, isLoading: isLoadingVpns } = useVpnEvents();
 
@@ -194,6 +200,36 @@ export function ProxyManagementDialog({
   const storedProxies = rawProxies
     .filter((p) => !p.is_cloud_managed && !p.is_cloud_derived)
     .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const loadGatewayStatus = async () => {
+      try {
+        const status = await invoke<{ installed: boolean }>(
+          "get_gateway_status",
+        );
+        setGatewayInstalled(status.installed);
+      } catch {
+        setGatewayInstalled(false);
+      }
+    };
+    void loadGatewayStatus();
+  }, [isOpen]);
+
+  const handleInstallGateway = async () => {
+    setIsInstallingGateway(true);
+    try {
+      await invoke("install_gateway");
+      setGatewayInstalled(true);
+      toast.success(t("gateway.installSuccess"));
+    } catch (error) {
+      toast.error(t("gateway.installError"), {
+        description: String(error),
+      });
+    } finally {
+      setIsInstallingGateway(false);
+    }
+  };
 
   // Listen for proxy sync status events
   useEffect(() => {
@@ -673,6 +709,37 @@ export function ProxyManagementDialog({
 
               <TabsContent value="proxies" className="mt-4">
                 <div className="space-y-4">
+                  {gatewayInstalled === false && (
+                    <div className="flex items-center justify-between rounded-md border border-warning/50 bg-warning/10 px-3 py-2 text-sm">
+                      <div>
+                        <p className="font-medium text-warning-foreground">
+                          {t("gateway.notInstalled")}
+                        </p>
+                        <p className="text-muted-foreground">
+                          {t("gateway.description")}
+                        </p>
+                      </div>
+                      <RippleButton
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void handleInstallGateway()}
+                        disabled={isInstallingGateway}
+                        className="ml-4 shrink-0"
+                      >
+                        {isInstallingGateway
+                          ? t("gateway.installing")
+                          : t("gateway.install")}
+                      </RippleButton>
+                    </div>
+                  )}
+                  {gatewayInstalled === true && (
+                    <div className="flex items-center gap-2 rounded-md border border-success/50 bg-success/10 px-3 py-2 text-sm">
+                      <div className="h-2 w-2 rounded-full bg-success shrink-0" />
+                      <span className="text-success-foreground">
+                        {t("gateway.installed")}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between items-center">
                     <div className="flex gap-2">
                       <RippleButton

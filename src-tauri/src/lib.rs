@@ -33,6 +33,7 @@ mod human_typing;
 mod ip_utils;
 mod platform_browser;
 mod profile;
+mod mihomo_manager;
 mod profile_importer;
 mod proxy_manager;
 pub mod proxy_runner;
@@ -1422,6 +1423,48 @@ async fn create_template_from_profile(
   template_manager::TemplateManager::instance().create_template(template)
 }
 
+#[tauri::command]
+async fn get_gateway_status() -> Result<mihomo_manager::GatewayStatus, String> {
+  Ok(mihomo_manager::MihomoManager::instance().get_status())
+}
+
+#[tauri::command]
+async fn install_gateway() -> Result<String, String> {
+  mihomo_manager::MihomoManager::instance()
+    .download_binary()
+    .await
+    .map(|p| p.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+async fn start_gateway_for_node(
+  node_id: String,
+  node_name: String,
+  node_server: String,
+  node_port: u16,
+  protocol: String,
+  password: Option<String>,
+  extra: Option<std::collections::HashMap<String, serde_json::Value>>,
+) -> Result<mihomo_manager::GatewayInstance, String> {
+  let extra_map = extra.unwrap_or_default();
+  let node = mihomo_manager::NodeConfig {
+    name: &node_name,
+    server: &node_server,
+    port: node_port,
+    protocol: &protocol,
+    password: password.as_deref(),
+    extra: &extra_map,
+  };
+  mihomo_manager::MihomoManager::instance()
+    .start_for_node(&node_id, &node)
+    .await
+}
+
+#[tauri::command]
+async fn stop_gateway_for_node(node_id: String) -> Result<(), String> {
+  mihomo_manager::MihomoManager::instance().stop_for_node(&node_id)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   let args: Vec<String> = env::args().collect();
@@ -2389,6 +2432,11 @@ pub fn run() {
       set_profile_proxy_source,
       resolve_profile_proxy_info,
       batch_delete_stored_proxies,
+      // Gateway (mihomo) commands
+      get_gateway_status,
+      install_gateway,
+      start_gateway_for_node,
+      stop_gateway_for_node,
     ])
     .build(tauri::generate_context!())
     .expect("error while building tauri application")
@@ -2464,6 +2512,11 @@ mod tests {
       "set_profile_proxy_source",
       "resolve_profile_proxy_info",
       "batch_delete_stored_proxies",
+      // Gateway commands
+      "get_gateway_status",
+      "install_gateway",
+      "start_gateway_for_node",
+      "stop_gateway_for_node",
     ];
 
     // Extract command names from the generate_handler! macro in this file
