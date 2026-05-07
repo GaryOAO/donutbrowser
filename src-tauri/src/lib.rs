@@ -31,9 +31,9 @@ mod geoip_downloader;
 mod group_manager;
 mod human_typing;
 mod ip_utils;
+mod mihomo_manager;
 mod platform_browser;
 mod profile;
-mod mihomo_manager;
 mod profile_importer;
 mod proxy_manager;
 pub mod proxy_runner;
@@ -58,7 +58,6 @@ pub mod daemon_ws;
 pub mod events;
 mod mcp_server;
 mod operation_log;
-mod subscription_pool;
 mod tag_manager;
 mod team_lock;
 mod template_manager;
@@ -287,14 +286,6 @@ async fn delete_stored_proxy(app_handle: tauri::AppHandle, proxy_id: String) -> 
   crate::proxy_manager::PROXY_MANAGER
     .delete_stored_proxy(&app_handle, &proxy_id)
     .map_err(|e| format!("Failed to delete stored proxy: {e}"))
-}
-
-#[tauri::command]
-async fn batch_delete_stored_proxies(
-  proxy_ids: Vec<String>,
-  app_handle: tauri::AppHandle,
-) -> Result<usize, String> {
-  crate::proxy_manager::PROXY_MANAGER.batch_delete_stored_proxies(proxy_ids, &app_handle)
 }
 
 #[derive(Deserialize)]
@@ -2431,7 +2422,6 @@ pub fn run() {
       // Proxy source commands
       set_profile_proxy_source,
       resolve_profile_proxy_info,
-      batch_delete_stored_proxies,
       // Gateway (mihomo) commands
       get_gateway_status,
       install_gateway,

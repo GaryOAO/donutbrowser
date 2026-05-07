@@ -69,10 +69,7 @@ impl MihomoManager {
     } else {
       "which"
     };
-    if let Ok(output) = std::process::Command::new(which_cmd)
-      .arg("mihomo")
-      .output()
-    {
+    if let Ok(output) = std::process::Command::new(which_cmd).arg("mihomo").output() {
       if output.status.success() {
         let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
         if !path_str.is_empty() {
@@ -109,15 +106,14 @@ impl MihomoManager {
       .await
       .map_err(|e| format!("Failed to parse release info: {e}"))?;
 
-    let assets = release["assets"]
-      .as_array()
-      .ok_or("No assets in release")?;
+    let assets = release["assets"].as_array().ok_or("No assets in release")?;
 
     let asset = assets
       .iter()
       .find(|a| {
         let name = a["name"].as_str().unwrap_or("");
-        name.contains(&platform) && (name.ends_with(".gz") || name.ends_with(".zip"))
+        name.contains(&platform)
+          && (name.ends_with(".gz") || name.ends_with(".zip"))
           && !name.contains("alpha")
           && !name.contains("compatible")
       })
@@ -197,20 +193,22 @@ impl MihomoManager {
     Ok(format!("{os}-{arch}"))
   }
 
-  fn extract_binary(archive_path: &PathBuf, dest: &PathBuf, archive_name: &str) -> Result<(), String> {
+  fn extract_binary(
+    archive_path: &PathBuf,
+    dest: &PathBuf,
+    archive_name: &str,
+  ) -> Result<(), String> {
     if archive_name.ends_with(".gz") && !archive_name.ends_with(".tar.gz") {
-      let file = fs::File::open(archive_path)
-        .map_err(|e| format!("Failed to open archive: {e}"))?;
+      let file =
+        fs::File::open(archive_path).map_err(|e| format!("Failed to open archive: {e}"))?;
       let mut gz = flate2::read::GzDecoder::new(file);
-      let mut out = fs::File::create(dest)
-        .map_err(|e| format!("Failed to create binary file: {e}"))?;
-      std::io::copy(&mut gz, &mut out)
-        .map_err(|e| format!("Failed to extract gz: {e}"))?;
+      let mut out =
+        fs::File::create(dest).map_err(|e| format!("Failed to create binary file: {e}"))?;
+      std::io::copy(&mut gz, &mut out).map_err(|e| format!("Failed to extract gz: {e}"))?;
     } else if archive_name.ends_with(".zip") {
-      let file = fs::File::open(archive_path)
-        .map_err(|e| format!("Failed to open zip: {e}"))?;
-      let mut archive = zip::ZipArchive::new(file)
-        .map_err(|e| format!("Failed to read zip: {e}"))?;
+      let file = fs::File::open(archive_path).map_err(|e| format!("Failed to open zip: {e}"))?;
+      let mut archive =
+        zip::ZipArchive::new(file).map_err(|e| format!("Failed to read zip: {e}"))?;
       let binary_name = Self::binary_name();
       for i in 0..archive.len() {
         let mut entry = archive
@@ -218,8 +216,8 @@ impl MihomoManager {
           .map_err(|e| format!("Failed to read zip entry: {e}"))?;
         let entry_name = entry.name().to_string();
         if entry_name == binary_name || entry_name.ends_with(&format!("/{binary_name}")) {
-          let mut out = fs::File::create(dest)
-            .map_err(|e| format!("Failed to create binary: {e}"))?;
+          let mut out =
+            fs::File::create(dest).map_err(|e| format!("Failed to create binary: {e}"))?;
           std::io::copy(&mut entry, &mut out)
             .map_err(|e| format!("Failed to extract binary: {e}"))?;
           return Ok(());
@@ -314,7 +312,13 @@ impl MihomoManager {
 
     let safe_node_id: String = node_id
       .chars()
-      .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+      .map(|c| {
+        if c.is_alphanumeric() || c == '-' || c == '_' {
+          c
+        } else {
+          '_'
+        }
+      })
       .collect();
     let config_path = dir.join(format!("config-{safe_node_id}.yaml"));
     fs::write(&config_path, &config_content)
@@ -371,7 +375,13 @@ impl MihomoManager {
 
       let safe_node_id: String = node_id
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+          if c.is_alphanumeric() || c == '-' || c == '_' {
+            c
+          } else {
+            '_'
+          }
+        })
         .collect();
       let config_path = Self::mihomo_dir().join(format!("config-{safe_node_id}.yaml"));
       let _ = fs::remove_file(&config_path);
@@ -455,6 +465,9 @@ mod tests {
       p.contains("darwin") || p.contains("linux") || p.contains("windows"),
       "unexpected platform: {p}"
     );
-    assert!(p.contains("amd64") || p.contains("arm64"), "unexpected arch in: {p}");
+    assert!(
+      p.contains("amd64") || p.contains("arm64"),
+      "unexpected arch in: {p}"
+    );
   }
 }
