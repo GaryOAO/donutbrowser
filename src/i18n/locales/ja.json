@@ -1688,10 +1688,11 @@
     "deleteConfirm": "このサブスクリプションとすべてのノードを削除しますか？",
     "subscriptions": "サブスクリプション",
     "allNodes": "すべてのノード",
-    "requiresGateway": "プロキシゲートウェイが必要 (mihomo/sing-box)",
+    "requiresGateway": "ローカルゲートウェイ経由でルーティング (mihomo)",
     "testAll": "全ノードテスト",
     "testAllResult": "{{success}}個到達可能、{{fail}}個到達不能",
-    "gatewayRequired": "ゲートウェイ必要"
+    "gatewayRequired": "ゲートウェイ経由",
+    "importGatewayHint": "プロキシとして 0 個のノードがインポートされました。{{count}} 個のノードはゲートウェイ経由で動作します — プロフィールで直接バインドしてください。"
   },
   "gateway": {
     "title": "プロキシゲートウェイ",

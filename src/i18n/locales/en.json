@@ -1688,10 +1688,11 @@
     "deleteConfirm": "Are you sure you want to delete this subscription and all its nodes?",
     "subscriptions": "Subscriptions",
     "allNodes": "All Nodes",
-    "requiresGateway": "Requires proxy gateway (mihomo/sing-box)",
+    "requiresGateway": "Routed through local gateway (mihomo)",
     "testAll": "Test All Nodes",
     "testAllResult": "{{success}} reachable, {{fail}} unreachable",
-    "gatewayRequired": "Gateway Required"
+    "gatewayRequired": "Via Gateway",
+    "importGatewayHint": "0 nodes imported as proxies. {{count}} nodes work via gateway — bind them directly in profile settings."
   },
   "gateway": {
     "title": "Proxy Gateway",

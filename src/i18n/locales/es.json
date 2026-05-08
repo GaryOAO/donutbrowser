@@ -1688,10 +1688,11 @@
     "deleteConfirm": "¿Estás seguro de que quieres eliminar esta suscripción y todos sus nodos?",
     "subscriptions": "Suscripciones",
     "allNodes": "Todos los Nodos",
-    "requiresGateway": "Requiere pasarela proxy (mihomo/sing-box)",
+    "requiresGateway": "Enrutado a través de la puerta de enlace local (mihomo)",
     "testAll": "Probar Todos",
     "testAllResult": "{{success}} alcanzables, {{fail}} inalcanzables",
-    "gatewayRequired": "Requiere Gateway"
+    "gatewayRequired": "Vía gateway",
+    "importGatewayHint": "0 nodos importados como proxies. {{count}} nodos funcionan vía gateway — vincúlalos directamente en la configuración del perfil."
   },
   "gateway": {
     "title": "Puerta de Enlace Proxy",

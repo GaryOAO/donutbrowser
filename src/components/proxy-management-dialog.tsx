@@ -455,9 +455,37 @@ export function ProxyManagementDialog({
         const ids = await invoke<string[]>("import_all_supported_pool_nodes", {
           subscriptionId: subId,
         });
-        showSuccessToast(
-          t("subscriptionPool.importSuccess", { count: ids.length }),
-        );
+        const gatewayProtos = new Set([
+          "vmess",
+          "vless",
+          "trojan",
+          "hysteria",
+          "hysteria2",
+          "tuic",
+        ]);
+        const nativeProtos = new Set([
+          "http",
+          "https",
+          "socks5",
+          "socks4",
+          "ss",
+        ]);
+        const gatewayCount = poolNodes
+          .filter((n) => n.subscription_id === subId)
+          .filter((n) => {
+            if (gatewayProtos.has(n.protocol)) return true;
+            if (nativeProtos.has(n.protocol) && n.extra?.plugin) return true;
+            return false;
+          }).length;
+        if (ids.length === 0 && gatewayCount > 0) {
+          showSuccessToast(
+            t("subscriptionPool.importGatewayHint", { count: gatewayCount }),
+          );
+        } else {
+          showSuccessToast(
+            t("subscriptionPool.importSuccess", { count: ids.length }),
+          );
+        }
         await loadSubscriptionData();
       } catch (e) {
         showErrorToast(t("subscriptionPool.importError"), {
@@ -467,7 +495,7 @@ export function ProxyManagementDialog({
         setImportingAllSubId(null);
       }
     },
-    [loadSubscriptionData, t],
+    [loadSubscriptionData, poolNodes, t],
   );
 
   const handleTestNodeLatency = useCallback(

@@ -1688,10 +1688,11 @@
     "deleteConfirm": "Tem certeza de que deseja excluir esta assinatura e todos os seus nós?",
     "subscriptions": "Assinaturas",
     "allNodes": "Todos os Nós",
-    "requiresGateway": "Requer gateway de proxy (mihomo/sing-box)",
+    "requiresGateway": "Roteado através do gateway local (mihomo)",
     "testAll": "Testar Todos",
     "testAllResult": "{{success}} acessíveis, {{fail}} inacessíveis",
-    "gatewayRequired": "Gateway necessário"
+    "gatewayRequired": "Via gateway",
+    "importGatewayHint": "0 nós importados como proxies. {{count}} nós funcionam via gateway — vincule-os diretamente nas configurações do perfil."
   },
   "gateway": {
     "title": "Gateway de Proxy",

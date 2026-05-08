@@ -1688,10 +1688,11 @@
     "deleteConfirm": "Êtes-vous sûr de vouloir supprimer cet abonnement et tous ses nœuds ?",
     "subscriptions": "Abonnements",
     "allNodes": "Tous les Nœuds",
-    "requiresGateway": "Nécessite une passerelle proxy (mihomo/sing-box)",
+    "requiresGateway": "Acheminé via la passerelle locale (mihomo)",
     "testAll": "Tester Tous",
     "testAllResult": "{{success}} joignables, {{fail}} injoignables",
-    "gatewayRequired": "Gateway requis"
+    "gatewayRequired": "Via passerelle",
+    "importGatewayHint": "0 nœud importé en proxy. {{count}} nœuds fonctionnent via la passerelle — liez-les directement dans le profil."
   },
   "gateway": {
     "title": "Passerelle Proxy",

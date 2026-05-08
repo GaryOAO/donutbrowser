@@ -1688,10 +1688,11 @@
     "deleteConfirm": "Вы уверены, что хотите удалить эту подписку и все ее узлы?",
     "subscriptions": "Подписки",
     "allNodes": "Все узлы",
-    "requiresGateway": "Требуется прокси-шлюз (mihomo/sing-box)",
+    "requiresGateway": "Маршрутизация через локальный шлюз (mihomo)",
     "testAll": "Тест всех",
     "testAllResult": "{{success}} доступных, {{fail}} недоступных",
-    "gatewayRequired": "Нужен шлюз"
+    "gatewayRequired": "Через шлюз",
+    "importGatewayHint": "0 узлов импортировано как прокси. {{count}} узлов работают через шлюз — привяжите их напрямую в настройках профиля."
   },
   "gateway": {
     "title": "Прокси-шлюз",

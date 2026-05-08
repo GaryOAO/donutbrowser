@@ -1688,10 +1688,11 @@
     "deleteConfirm": "确定要删除此订阅及其所有节点吗？",
     "subscriptions": "订阅",
     "allNodes": "所有节点",
-    "requiresGateway": "需要代理网关 (mihomo/sing-box)",
+    "requiresGateway": "通过本地网关转发 (mihomo)",
     "testAll": "测试所有节点",
     "testAllResult": "{{success}} 个可达，{{fail}} 个不可达",
-    "gatewayRequired": "需要网关"
+    "gatewayRequired": "通过网关",
+    "importGatewayHint": "0 个节点导入为代理。{{count}} 个节点通过网关工作，可直接在配置文件中绑定。"
   },
   "gateway": {
     "title": "代理网关",
