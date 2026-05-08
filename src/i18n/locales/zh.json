@@ -207,7 +207,13 @@
       "proxy": "代理 / VPN",
       "lastLaunch": "最后启动",
       "empty": "未找到配置文件。",
-      "notSelected": "未选择"
+      "notSelected": "未选择",
+      "proxyPicker": {
+        "vpnConfigs": "VPN 配置",
+        "storedProxies": "已保存代理",
+        "subscriptionNodes": "订阅节点",
+        "noSubscriptions": "暂无订阅"
+      }
     },
     "actions": {
       "launch": "启动",

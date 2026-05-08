@@ -207,7 +207,13 @@
       "proxy": "Прокси / VPN",
       "lastLaunch": "Последний запуск",
       "empty": "Профили не найдены.",
-      "notSelected": "Не выбрано"
+      "notSelected": "Не выбрано",
+      "proxyPicker": {
+        "vpnConfigs": "Конфигурации VPN",
+        "storedProxies": "Сохранённые прокси",
+        "subscriptionNodes": "Узлы подписки",
+        "noSubscriptions": "Подписки не добавлены"
+      }
     },
     "actions": {
       "launch": "Запустить",
