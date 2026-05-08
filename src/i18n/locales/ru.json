@@ -1665,9 +1665,6 @@
     "refresh": "Обновить",
     "refreshAll": "Обновить все",
     "delete": "Удалить",
-    "importAll": "Импортировать все поддерживаемые",
-    "importNode": "Импортировать",
-    "imported": "Импортирован",
     "testLatency": "Тест",
     "testing": "Тестирование...",
     "latencyMs": "{{ms}}мс",
@@ -1685,9 +1682,6 @@
     "refreshError": "Не удалось обновить подписку",
     "deleteSuccess": "Подписка удалена",
     "deleteError": "Не удалось удалить подписку",
-    "importSuccess": "{{count}} узлов импортированы как прокси",
-    "importNodeSuccess": "Узел импортирован как прокси",
-    "importError": "Не удалось импортировать узел",
     "lastUpdated": "Последнее обновление: {{time}}",
     "nodeCount": "{{count}} узлов",
     "fetchError": "Ошибка получения: {{error}}",
@@ -1697,8 +1691,7 @@
     "requiresGateway": "Маршрутизация через локальный шлюз (mihomo)",
     "testAll": "Тест всех",
     "testAllResult": "{{success}} доступных, {{fail}} недоступных",
-    "gatewayRequired": "Через шлюз",
-    "importGatewayHint": "0 узлов импортировано как прокси. {{count}} узлов работают через шлюз — привяжите их напрямую в настройках профиля."
+    "gatewayRequired": "Через шлюз"
   },
   "gateway": {
     "title": "Прокси-шлюз",

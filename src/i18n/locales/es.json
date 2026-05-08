@@ -1665,9 +1665,6 @@
     "refresh": "Actualizar",
     "refreshAll": "Actualizar Todo",
     "delete": "Eliminar",
-    "importAll": "Importar Todos los Soportados",
-    "importNode": "Importar",
-    "imported": "Importado",
     "testLatency": "Probar",
     "testing": "Probando...",
     "latencyMs": "{{ms}}ms",
@@ -1685,9 +1682,6 @@
     "refreshError": "Error al actualizar suscripción",
     "deleteSuccess": "Suscripción eliminada",
     "deleteError": "Error al eliminar suscripción",
-    "importSuccess": "{{count}} nodos importados como proxies",
-    "importNodeSuccess": "Nodo importado como proxy",
-    "importError": "Error al importar nodo",
     "lastUpdated": "Última actualización: {{time}}",
     "nodeCount": "{{count}} nodos",
     "fetchError": "Error de obtención: {{error}}",
@@ -1697,8 +1691,7 @@
     "requiresGateway": "Enrutado a través de la puerta de enlace local (mihomo)",
     "testAll": "Probar Todos",
     "testAllResult": "{{success}} alcanzables, {{fail}} inalcanzables",
-    "gatewayRequired": "Vía gateway",
-    "importGatewayHint": "0 nodos importados como proxies. {{count}} nodos funcionan vía gateway — vincúlalos directamente en la configuración del perfil."
+    "gatewayRequired": "Vía gateway"
   },
   "gateway": {
     "title": "Puerta de Enlace Proxy",
