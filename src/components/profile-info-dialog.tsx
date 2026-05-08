@@ -47,6 +47,7 @@ import { formatRelativeTime } from "@/lib/flag-utils";
 import { cn } from "@/lib/utils";
 import type {
   BrowserProfile,
+  PoolNode,
   ProfileGroup,
   StoredProxy,
   VpnConfig,
@@ -57,6 +58,7 @@ interface ProfileInfoDialogProps {
   onClose: () => void;
   profile: BrowserProfile | null;
   storedProxies: StoredProxy[];
+  poolNodes: PoolNode[];
   vpnConfigs: VpnConfig[];
   onOpenTrafficDialog?: (profileId: string) => void;
   onOpenProfileSyncDialog?: (profile: BrowserProfile) => void;
@@ -105,6 +107,7 @@ export function ProfileInfoDialog({
   onClose,
   profile,
   storedProxies,
+  poolNodes,
   vpnConfigs,
   onOpenTrafficDialog,
   onOpenProfileSyncDialog,
@@ -179,9 +182,14 @@ export function ProfileInfoDialog({
     profile.browser === "camoufox" || profile.browser === "wayfern";
   const isDeleteDisabled = isRunning;
 
-  const proxyName = profile.proxy_id
-    ? storedProxies.find((p) => p.id === profile.proxy_id)?.name
-    : null;
+  const proxyName =
+    profile.proxy_source?.type === "StoredProxy"
+      ? storedProxies.find((p) => p.id === profile.proxy_source?.id)?.name
+      : profile.proxy_source?.type === "SubscriptionNode"
+        ? poolNodes.find((node) => node.id === profile.proxy_source?.id)?.name
+        : profile.proxy_id
+          ? storedProxies.find((p) => p.id === profile.proxy_id)?.name
+          : null;
   const vpnName = profile.vpn_id
     ? vpnConfigs.find((v) => v.id === profile.vpn_id)?.name
     : null;

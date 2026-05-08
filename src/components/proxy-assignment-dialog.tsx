@@ -151,18 +151,10 @@ export function ProxyAssignmentDialog({
             id: selectedId,
           };
           await invoke("set_profile_proxy_source", { profileId, proxySource });
-          await invoke("update_profile_proxy", {
-            profileId,
-            proxyId: selectedId,
-          });
         } else {
           await invoke("set_profile_proxy_source", {
             profileId,
             proxySource: null,
-          });
-          await invoke("update_profile_proxy", {
-            profileId,
-            proxyId: null,
           });
         }
       }

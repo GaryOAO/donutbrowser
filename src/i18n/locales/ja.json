@@ -207,7 +207,13 @@
       "proxy": "プロキシ / VPN",
       "lastLaunch": "最終起動",
       "empty": "プロファイルが見つかりません。",
-      "notSelected": "未選択"
+      "notSelected": "未選択",
+      "proxyPicker": {
+        "vpnConfigs": "VPN設定",
+        "storedProxies": "保存済みプロキシ",
+        "subscriptionNodes": "サブスクリプションノード",
+        "noSubscriptions": "サブスクリプションがありません"
+      }
     },
     "actions": {
       "launch": "起動",

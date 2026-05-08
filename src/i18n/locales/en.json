@@ -207,7 +207,13 @@
       "proxy": "Proxy / VPN",
       "lastLaunch": "Last Launch",
       "empty": "No profiles found.",
-      "notSelected": "Not Selected"
+      "notSelected": "Not Selected",
+      "proxyPicker": {
+        "vpnConfigs": "VPN Configs",
+        "storedProxies": "Stored Proxies",
+        "subscriptionNodes": "Subscription Nodes",
+        "noSubscriptions": "No subscriptions added"
+      }
     },
     "actions": {
       "launch": "Launch",

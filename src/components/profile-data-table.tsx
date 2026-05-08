@@ -19,6 +19,7 @@ import { FiWifi } from "react-icons/fi";
 import {
   LuCheck,
   LuChevronDown,
+  LuChevronRight,
   LuChevronUp,
   LuCookie,
   LuInfo,
@@ -85,8 +86,10 @@ import type {
   BrowserProfile,
   LocationItem,
   PoolNode,
+  ProxySource,
   ProxyCheckResult,
   StoredProxy,
+  Subscription,
   SyncSessionInfo,
   TrafficSnapshot,
   VpnConfig,
@@ -139,11 +142,20 @@ interface TableMeta {
   openProxySelectorFor: string | null;
   setOpenProxySelectorFor: React.Dispatch<React.SetStateAction<string | null>>;
   proxyOverrides: Record<string, string | null>;
+  proxySourceOverrides: Record<string, ProxySource | null>;
   storedProxies: StoredProxy[];
+  subscriptions: Subscription[];
   poolNodes: PoolNode[];
+  expandedSubscriptionIds: Set<string>;
+  resetSubscriptionExpansion: () => void;
+  toggleSubscriptionExpansion: (subscriptionId: string) => void;
   handleProxySelection: (
     profileId: string,
     proxyId: string | null,
+  ) => void | Promise<void>;
+  handleSubscriptionNodeSelection: (
+    profileId: string,
+    nodeId: string,
   ) => void | Promise<void>;
   checkingProfileId: string | null;
   proxyCheckResults: Record<string, ProxyCheckResult>;
@@ -973,6 +985,7 @@ export function ProfilesDataTable({
 
   const { storedProxies } = useProxyEvents();
   const { vpnConfigs } = useVpnEvents();
+  const [subscriptions, setSubscriptions] = React.useState<Subscription[]>([]);
   const [poolNodes, setPoolNodes] = React.useState<PoolNode[]>([]);
   const { user } = useCloudAuth();
   const { isProfileLocked, getLockInfo } = useTeamLocks(user?.id);
@@ -980,9 +993,15 @@ export function ProfilesDataTable({
   const [proxyOverrides, setProxyOverrides] = React.useState<
     Record<string, string | null>
   >({});
+  const [proxySourceOverrides, setProxySourceOverrides] = React.useState<
+    Record<string, ProxySource | null>
+  >({});
   const [vpnOverrides, setVpnOverrides] = React.useState<
     Record<string, string | null>
   >({});
+  const [expandedSubscriptionIds, setExpandedSubscriptionIds] = React.useState<
+    Set<string>
+  >(new Set());
   const [showCheckboxes, setShowCheckboxes] = React.useState(false);
   const [tagsOverrides, setTagsOverrides] = React.useState<
     Record<string, string[]>
@@ -1074,12 +1093,46 @@ export function ProfilesDataTable({
 
   const handleProxySelection = React.useCallback(
     async (profileId: string, proxyId: string | null) => {
+      const proxySource: ProxySource | null = proxyId
+        ? { type: "StoredProxy", id: proxyId }
+        : null;
       try {
-        await invoke("update_profile_proxy", {
+        await invoke("set_profile_proxy_source", {
           profileId,
-          proxyId,
+          proxySource,
         });
         setProxyOverrides((prev) => ({ ...prev, [profileId]: proxyId }));
+        setProxySourceOverrides((prev) => ({
+          ...prev,
+          [profileId]: proxySource,
+        }));
+        setVpnOverrides((prev) => ({ ...prev, [profileId]: null }));
+        await emit("profile-updated");
+      } catch (error) {
+        console.error("Failed to update proxy settings:", error);
+      } finally {
+        setOpenProxySelectorFor(null);
+      }
+    },
+    [],
+  );
+
+  const handleSubscriptionNodeSelection = React.useCallback(
+    async (profileId: string, nodeId: string) => {
+      const proxySource: ProxySource = {
+        type: "SubscriptionNode",
+        id: nodeId,
+      };
+      try {
+        await invoke("set_profile_proxy_source", {
+          profileId,
+          proxySource,
+        });
+        setProxyOverrides((prev) => ({ ...prev, [profileId]: null }));
+        setProxySourceOverrides((prev) => ({
+          ...prev,
+          [profileId]: proxySource,
+        }));
         setVpnOverrides((prev) => ({ ...prev, [profileId]: null }));
         await emit("profile-updated");
       } catch (error) {
@@ -1100,6 +1153,7 @@ export function ProfilesDataTable({
         });
         setVpnOverrides((prev) => ({ ...prev, [profileId]: vpnId }));
         setProxyOverrides((prev) => ({ ...prev, [profileId]: null }));
+        setProxySourceOverrides((prev) => ({ ...prev, [profileId]: null }));
         await emit("profile-updated");
       } catch (error) {
         console.error("Failed to update VPN settings:", error);
@@ -1140,6 +1194,25 @@ export function ProfilesDataTable({
     [handleProxySelection],
   );
 
+  const toggleSubscriptionExpansion = React.useCallback(
+    (subscriptionId: string) => {
+      setExpandedSubscriptionIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(subscriptionId)) {
+          next.delete(subscriptionId);
+        } else {
+          next.add(subscriptionId);
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
+  const resetSubscriptionExpansion = React.useCallback(() => {
+    setExpandedSubscriptionIds(new Set());
+  }, []);
+
   // Use shared browser state hook
   const browserState = useBrowserState(
     profiles,
@@ -1149,18 +1222,22 @@ export function ProfilesDataTable({
     stoppingProfiles,
   );
 
-  // Load pool nodes for subscription node display
+  // Load subscription data for subscription node display
   React.useEffect(() => {
     if (!browserState.isClient) return;
-    const loadPoolNodes = async () => {
+    const loadSubscriptionData = async () => {
       try {
-        const nodes = await invoke<PoolNode[]>("list_pool_nodes");
+        const [subs, nodes] = await Promise.all([
+          invoke<Subscription[]>("list_subscriptions"),
+          invoke<PoolNode[]>("list_pool_nodes"),
+        ]);
+        setSubscriptions(subs);
         setPoolNodes(nodes);
       } catch (_error) {
         // Pool nodes may not be available yet
       }
     };
-    void loadPoolNodes();
+    void loadSubscriptionData();
   }, [browserState.isClient]);
 
   // Listen for sync status events
@@ -1553,9 +1630,15 @@ export function ProfilesDataTable({
       openProxySelectorFor,
       setOpenProxySelectorFor,
       proxyOverrides,
+      proxySourceOverrides,
       storedProxies,
+      subscriptions,
       poolNodes,
+      expandedSubscriptionIds,
+      resetSubscriptionExpansion,
+      toggleSubscriptionExpansion,
       handleProxySelection,
+      handleSubscriptionNodeSelection,
       checkingProfileId,
       proxyCheckResults,
 
@@ -1648,9 +1731,15 @@ export function ProfilesDataTable({
       openNoteEditorFor,
       openProxySelectorFor,
       proxyOverrides,
+      proxySourceOverrides,
       storedProxies,
+      subscriptions,
       poolNodes,
+      expandedSubscriptionIds,
+      resetSubscriptionExpansion,
+      toggleSubscriptionExpansion,
       handleProxySelection,
+      handleSubscriptionNodeSelection,
       checkingProfileId,
       proxyCheckResults,
       vpnConfigs,
@@ -2251,13 +2340,25 @@ export function ProfilesDataTable({
           const isDisabled =
             isRunning || isLaunching || isStopping || isCrossOsBlocked;
 
+          const hasProxySourceOverride = Object.hasOwn(
+            meta.proxySourceOverrides,
+            profile.id,
+          );
+          const effectiveProxySource = hasProxySourceOverride
+            ? meta.proxySourceOverrides[profile.id]
+            : (profile.proxy_source ?? null);
           const hasProxyOverride = Object.hasOwn(
             meta.proxyOverrides,
             profile.id,
           );
-          const effectiveProxyId = hasProxyOverride
-            ? meta.proxyOverrides[profile.id]
-            : (profile.proxy_id ?? null);
+          const effectiveProxyId =
+            effectiveProxySource?.type === "StoredProxy"
+              ? effectiveProxySource.id
+              : effectiveProxySource?.type === "SubscriptionNode"
+                ? null
+                : hasProxyOverride
+                  ? meta.proxyOverrides[profile.id]
+                  : (profile.proxy_id ?? null);
           const effectiveProxy = effectiveProxyId
             ? (meta.storedProxies.find((p) => p.id === effectiveProxyId) ??
               null)
@@ -2271,10 +2372,10 @@ export function ProfilesDataTable({
             ? (meta.vpnConfigs.find((v) => v.id === effectiveVpnId) ?? null)
             : null;
 
-          const proxySource = profile.proxy_source;
           const effectiveNode =
-            proxySource?.type === "SubscriptionNode"
-              ? (meta.poolNodes.find((n) => n.id === proxySource.id) ?? null)
+            effectiveProxySource?.type === "SubscriptionNode"
+              ? (meta.poolNodes.find((n) => n.id === effectiveProxySource.id) ??
+                null)
               : null;
 
           const hasAssignment = Boolean(
@@ -2291,7 +2392,54 @@ export function ProfilesDataTable({
           const nodeBadge = effectiveNode ? effectiveNode.protocol : null;
           const tooltipText = hasAssignment ? displayName : null;
           const isSelectorOpen = meta.openProxySelectorFor === profile.id;
-          const selectedId = effectiveVpnId ?? effectiveProxyId ?? null;
+          const selectedStoredProxyId = effectiveProxy?.id ?? null;
+          const selectedNodeId = effectiveNode?.id ?? null;
+          const hasSelectedNetworkSource = Boolean(
+            effectiveVpnId || selectedStoredProxyId || selectedNodeId,
+          );
+          const storedProxyOptions = meta.storedProxies.filter(
+            (proxy: StoredProxy) =>
+              !proxy.is_cloud_managed && !proxy.is_cloud_derived,
+          );
+          const nodesBySubscription = meta.subscriptions
+            .map((subscription) => ({
+              subscription,
+              nodes: meta.poolNodes.filter(
+                (node) => node.subscription_id === subscription.id,
+              ),
+            }))
+            .filter(({ nodes }) => nodes.length > 0);
+          const nativelySupportedProtocols = new Set([
+            "http",
+            "https",
+            "socks5",
+            "socks4",
+            "ss",
+          ]);
+          const gatewayProtocols = new Set([
+            "vmess",
+            "vless",
+            "trojan",
+            "hysteria",
+            "hysteria2",
+            "tuic",
+          ]);
+          const isNodeImportable = (node: PoolNode) => {
+            if (!nativelySupportedProtocols.has(node.protocol)) return false;
+            if (node.extra?.plugin) return false;
+            return true;
+          };
+          const nodeNeedsGateway = (node: PoolNode) => {
+            if (node.protocol === "unknown") return false;
+            if (isNodeImportable(node)) return false;
+            if (gatewayProtocols.has(node.protocol)) return true;
+            if (
+              nativelySupportedProtocols.has(node.protocol) &&
+              node.extra?.plugin
+            )
+              return true;
+            return false;
+          };
 
           // When profile is running, show bandwidth chart instead of proxy selector
           if (isRunning && meta.trafficSnapshots) {
@@ -2318,6 +2466,9 @@ export function ProfilesDataTable({
               <Popover
                 open={isSelectorOpen}
                 onOpenChange={(open) => {
+                  if (open) {
+                    meta.resetSubscriptionExpansion();
+                  }
                   meta.setOpenProxySelectorFor(open ? profile.id : null);
                 }}
               >
@@ -2388,7 +2539,7 @@ export function ProfilesDataTable({
                         <CommandEmpty>
                           {t("createProfile.proxy.notFound")}
                         </CommandEmpty>
-                        <CommandGroup>
+                        <CommandGroup heading={t("common.labels.none")}>
                           <CommandItem
                             value="__none__"
                             onSelect={() =>
@@ -2398,45 +2549,18 @@ export function ProfilesDataTable({
                             <LuCheck
                               className={cn(
                                 "mr-2 h-4 w-4",
-                                selectedId === null
+                                !hasSelectedNetworkSource
                                   ? "opacity-100"
                                   : "opacity-0",
                               )}
                             />
                             {t("common.labels.none")}
                           </CommandItem>
-                          {meta.storedProxies
-                            .filter(
-                              (proxy: StoredProxy) =>
-                                !proxy.is_cloud_managed &&
-                                !proxy.is_cloud_derived,
-                            )
-                            .map((proxy: StoredProxy) => (
-                              <CommandItem
-                                key={proxy.id}
-                                value={proxy.name}
-                                onSelect={() =>
-                                  void meta.handleProxySelection(
-                                    profile.id,
-                                    proxy.id,
-                                  )
-                                }
-                              >
-                                <LuCheck
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    effectiveProxyId === proxy.id &&
-                                      !effectiveVpn
-                                      ? "opacity-100"
-                                      : "opacity-0",
-                                  )}
-                                />
-                                {proxy.name}
-                              </CommandItem>
-                            ))}
                         </CommandGroup>
                         {meta.vpnConfigs.length > 0 && (
-                          <CommandGroup heading={t("profileTable.vpnsHeading")}>
+                          <CommandGroup
+                            heading={t("profiles.table.proxyPicker.vpnConfigs")}
+                          >
                             {meta.vpnConfigs.map((vpn) => (
                               <CommandItem
                                 key={vpn.id}
@@ -2467,6 +2591,127 @@ export function ProfilesDataTable({
                             ))}
                           </CommandGroup>
                         )}
+                        <CommandGroup
+                          heading={t(
+                            "profiles.table.proxyPicker.storedProxies",
+                          )}
+                        >
+                          {storedProxyOptions.map((proxy: StoredProxy) => (
+                            <CommandItem
+                              key={proxy.id}
+                              value={proxy.name}
+                              onSelect={() =>
+                                void meta.handleProxySelection(
+                                  profile.id,
+                                  proxy.id,
+                                )
+                              }
+                            >
+                              <LuCheck
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  selectedStoredProxyId === proxy.id &&
+                                    !effectiveVpn
+                                    ? "opacity-100"
+                                    : "opacity-0",
+                                )}
+                              />
+                              {proxy.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                        <CommandGroup
+                          heading={t(
+                            "profiles.table.proxyPicker.subscriptionNodes",
+                          )}
+                        >
+                          {nodesBySubscription.length === 0 ? (
+                            <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                              {t(
+                                "profiles.table.proxyPicker.noSubscriptions",
+                              )}
+                            </div>
+                          ) : (
+                            nodesBySubscription.map(
+                              ({ subscription, nodes }) => {
+                                const isExpanded =
+                                  meta.expandedSubscriptionIds.has(
+                                    subscription.id,
+                                  );
+                                return (
+                                  <React.Fragment key={subscription.id}>
+                                    <CommandItem
+                                      value={`subscription-${subscription.name}`}
+                                      onSelect={() =>
+                                        meta.toggleSubscriptionExpansion(
+                                          subscription.id,
+                                        )
+                                      }
+                                    >
+                                      {isExpanded ? (
+                                        <LuChevronDown className="mr-2 h-4 w-4" />
+                                      ) : (
+                                        <LuChevronRight className="mr-2 h-4 w-4" />
+                                      )}
+                                      <span className="truncate">
+                                        {subscription.name}
+                                      </span>
+                                    </CommandItem>
+                                    {isExpanded &&
+                                      nodes.map((node) => (
+                                        <CommandItem
+                                          key={node.id}
+                                          value={`${subscription.name} ${node.name} ${node.protocol}`}
+                                          onSelect={() =>
+                                            void meta.handleSubscriptionNodeSelection(
+                                              profile.id,
+                                              node.id,
+                                            )
+                                          }
+                                        >
+                                          <LuCheck
+                                            className={cn(
+                                              "ml-4 mr-2 h-4 w-4",
+                                              selectedNodeId === node.id &&
+                                                !effectiveVpn
+                                                ? "opacity-100"
+                                                : "opacity-0",
+                                            )}
+                                          />
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <span className="min-w-0 flex-1 truncate">
+                                                {node.name}
+                                              </span>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                              {node.name}
+                                            </TooltipContent>
+                                          </Tooltip>
+                                          <Badge
+                                            variant="outline"
+                                            className="ml-2 text-[10px] px-1 py-0 leading-tight"
+                                          >
+                                            {node.protocol}
+                                          </Badge>
+                                          {nodeNeedsGateway(node) && (
+                                            <Badge
+                                              variant="outline"
+                                              className="bg-warning/10 text-warning-foreground border-warning/50 text-[10px] px-1 py-0 leading-tight"
+                                            >
+                                              {t(
+                                                "subscriptionPool.gatewayRequired",
+                                              )}
+                                            </Badge>
+                                          )}
+                                        </CommandItem>
+                                      ))}
+                                  </React.Fragment>
+                                );
+                              },
+                            )
+                          )}
+                        </CommandGroup>
                         {meta.canCreateLocationProxy &&
                           meta.countries.length > 0 && (
                             <CommandGroup
@@ -2748,6 +2993,7 @@ export function ProfilesDataTable({
               }}
               profile={infoProfile}
               storedProxies={storedProxies}
+              poolNodes={poolNodes}
               vpnConfigs={vpnConfigs}
               onOpenTrafficDialog={(profileId) => {
                 const profile = profiles.find((p) => p.id === profileId);
