@@ -170,7 +170,7 @@ jobs:
           fi
 
       - name: Import Apple certificate
-        if: matrix.platform == 'macos-latest'
+        if: matrix.platform == 'macos-latest' && env.APPLE_CERTIFICATE != ''
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_KEY: ${{ secrets.APPLE_CERTIFICATE_KEY }}
@@ -263,7 +263,9 @@ jobs:
           gh release upload "$NIGHTLY_TAG" "Donut_x64-portable.zip" --clobber
 
       - name: Clean up Apple certificate
-        if: matrix.platform == 'macos-latest' && always()
+        if: matrix.platform == 'macos-latest' && env.APPLE_CERTIFICATE != '' && always()
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
         run: |
           security delete-keychain $RUNNER_TEMP/app-signing.keychain-db || true
           rm -f $RUNNER_TEMP/build_certificate.p12 || true
