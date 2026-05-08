@@ -114,6 +114,58 @@ function getSyncStatusDot(
   }
 }
 
+interface GatewayBannerProps {
+  gatewayInstalled: boolean | null;
+  isInstallingGateway: boolean;
+  onInstall: () => void;
+  showInstalled?: boolean;
+  t: (key: string) => string;
+}
+
+function GatewayBanner({
+  gatewayInstalled,
+  isInstallingGateway,
+  onInstall,
+  showInstalled = false,
+  t,
+}: GatewayBannerProps) {
+  return (
+    <>
+      {gatewayInstalled === false && (
+        <div className="flex items-center justify-between rounded-md border border-warning/50 bg-warning/10 px-3 py-2 text-sm">
+          <div>
+            <p className="font-medium text-warning-foreground">
+              {t("gateway.notInstalled")}
+            </p>
+            <p className="text-muted-foreground">
+              {t("gateway.description")}
+            </p>
+          </div>
+          <RippleButton
+            size="sm"
+            variant="outline"
+            onClick={onInstall}
+            disabled={isInstallingGateway}
+            className="ml-4 shrink-0"
+          >
+            {isInstallingGateway
+              ? t("gateway.installing")
+              : t("gateway.install")}
+          </RippleButton>
+        </div>
+      )}
+      {showInstalled && gatewayInstalled === true && (
+        <div className="flex items-center gap-2 rounded-md border border-success/50 bg-success/10 px-3 py-2 text-sm">
+          <div className="h-2 w-2 rounded-full bg-success shrink-0" />
+          <span className="text-success-foreground">
+            {t("gateway.installed")}
+          </span>
+        </div>
+      )}
+    </>
+  );
+}
+
 interface ProxyManagementDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -178,10 +230,6 @@ export function ProxyManagementDialog({
   const [isAddingSub, setIsAddingSub] = useState(false);
   const [refreshingSubId, setRefreshingSubId] = useState<string | null>(null);
   const [testingNodeId, setTestingNodeId] = useState<string | null>(null);
-  const [importingNodeId, setImportingNodeId] = useState<string | null>(null);
-  const [importingAllSubId, setImportingAllSubId] = useState<string | null>(
-    null,
-  );
   const [selectedSubFilter, setSelectedSubFilter] = useState<string | null>(
     null,
   );
@@ -192,6 +240,7 @@ export function ProxyManagementDialog({
     null,
   );
   const [isInstallingGateway, setIsInstallingGateway] = useState(false);
+  const [activeTab, setActiveTab] = useState("proxies");
 
   const { storedProxies: rawProxies, proxyUsage, isLoading } = useProxyEvents();
   const { vpnConfigs, vpnUsage, isLoading: isLoadingVpns } = useVpnEvents();
@@ -201,26 +250,26 @@ export function ProxyManagementDialog({
     .filter((p) => !p.is_cloud_managed && !p.is_cloud_derived)
     .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
 
+  const refreshGatewayStatus = useCallback(async () => {
+    try {
+      const status = await invoke<{ installed: boolean }>("get_gateway_status");
+      setGatewayInstalled(status.installed);
+    } catch {
+      setGatewayInstalled(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!isOpen) return;
-    const loadGatewayStatus = async () => {
-      try {
-        const status = await invoke<{ installed: boolean }>(
-          "get_gateway_status",
-        );
-        setGatewayInstalled(status.installed);
-      } catch {
-        setGatewayInstalled(false);
-      }
-    };
-    void loadGatewayStatus();
-  }, [isOpen]);
+    void refreshGatewayStatus();
+  }, [isOpen, refreshGatewayStatus]);
 
   const handleInstallGateway = async () => {
     setIsInstallingGateway(true);
     try {
       await invoke("install_gateway");
       setGatewayInstalled(true);
+      await refreshGatewayStatus();
       toast.success(t("gateway.installSuccess"));
     } catch (error) {
       toast.error(t("gateway.installError"), {
@@ -230,6 +279,16 @@ export function ProxyManagementDialog({
       setIsInstallingGateway(false);
     }
   };
+
+  const handleTabChange = useCallback(
+    (value: string) => {
+      setActiveTab(value);
+      if (isOpen) {
+        void refreshGatewayStatus();
+      }
+    },
+    [isOpen, refreshGatewayStatus],
+  );
 
   // Listen for proxy sync status events
   useEffect(() => {
@@ -430,74 +489,6 @@ export function ProxyManagementDialog({
     [loadSubscriptionData, selectedSubFilter, t],
   );
 
-  const handleImportNode = useCallback(
-    async (nodeId: string) => {
-      setImportingNodeId(nodeId);
-      try {
-        await invoke("import_pool_node_as_proxy", { nodeId });
-        showSuccessToast(t("subscriptionPool.importNodeSuccess"));
-        await loadSubscriptionData();
-      } catch (e) {
-        showErrorToast(t("subscriptionPool.importError"), {
-          description: String(e),
-        });
-      } finally {
-        setImportingNodeId(null);
-      }
-    },
-    [loadSubscriptionData, t],
-  );
-
-  const handleImportAllNodes = useCallback(
-    async (subId: string) => {
-      setImportingAllSubId(subId);
-      try {
-        const ids = await invoke<string[]>("import_all_supported_pool_nodes", {
-          subscriptionId: subId,
-        });
-        const gatewayProtos = new Set([
-          "vmess",
-          "vless",
-          "trojan",
-          "hysteria",
-          "hysteria2",
-          "tuic",
-        ]);
-        const nativeProtos = new Set([
-          "http",
-          "https",
-          "socks5",
-          "socks4",
-          "ss",
-        ]);
-        const gatewayCount = poolNodes
-          .filter((n) => n.subscription_id === subId)
-          .filter((n) => {
-            if (gatewayProtos.has(n.protocol)) return true;
-            if (nativeProtos.has(n.protocol) && n.extra?.plugin) return true;
-            return false;
-          }).length;
-        if (ids.length === 0 && gatewayCount > 0) {
-          showSuccessToast(
-            t("subscriptionPool.importGatewayHint", { count: gatewayCount }),
-          );
-        } else {
-          showSuccessToast(
-            t("subscriptionPool.importSuccess", { count: ids.length }),
-          );
-        }
-        await loadSubscriptionData();
-      } catch (e) {
-        showErrorToast(t("subscriptionPool.importError"), {
-          description: String(e),
-        });
-      } finally {
-        setImportingAllSubId(null);
-      }
-    },
-    [loadSubscriptionData, poolNodes, t],
-  );
-
   const handleTestNodeLatency = useCallback(
     async (nodeId: string) => {
       setTestingNodeId(nodeId);
@@ -556,7 +547,7 @@ export function ProxyManagementDialog({
     "tuic",
   ]);
 
-  const isNodeImportable = (node: PoolNode) => {
+  const isNodeSupported = (node: PoolNode) => {
     if (!nativelySupportedProtocols.has(node.protocol)) return false;
     if (node.extra?.plugin) return false;
     return true;
@@ -564,7 +555,7 @@ export function ProxyManagementDialog({
 
   const nodeNeedsGateway = (node: PoolNode) => {
     if (node.protocol === "unknown") return false;
-    if (isNodeImportable(node)) return false;
+    if (isNodeSupported(node)) return false;
     if (gatewayProtocols.has(node.protocol)) return true;
     if (nativelySupportedProtocols.has(node.protocol) && node.extra?.plugin)
       return true;
@@ -574,6 +565,7 @@ export function ProxyManagementDialog({
   const filteredPoolNodes = selectedSubFilter
     ? poolNodes.filter((n) => n.subscription_id === selectedSubFilter)
     : poolNodes;
+  const subscriptionNeedsGateway = filteredPoolNodes.some(nodeNeedsGateway);
 
   // Proxy handlers
   const handleDeleteProxy = useCallback((proxy: StoredProxy) => {
@@ -740,7 +732,7 @@ export function ProxyManagementDialog({
           </DialogHeader>
 
           <ScrollArea className="overflow-y-auto flex-1">
-            <Tabs defaultValue="proxies">
+            <Tabs value={activeTab} onValueChange={handleTabChange}>
               <TabsList className="w-full">
                 <TabsTrigger value="proxies" className="flex-1">
                   {t("proxies.management.tabProxies")}
@@ -755,37 +747,13 @@ export function ProxyManagementDialog({
 
               <TabsContent value="proxies" className="mt-4">
                 <div className="space-y-4">
-                  {gatewayInstalled === false && (
-                    <div className="flex items-center justify-between rounded-md border border-warning/50 bg-warning/10 px-3 py-2 text-sm">
-                      <div>
-                        <p className="font-medium text-warning-foreground">
-                          {t("gateway.notInstalled")}
-                        </p>
-                        <p className="text-muted-foreground">
-                          {t("gateway.description")}
-                        </p>
-                      </div>
-                      <RippleButton
-                        size="sm"
-                        variant="outline"
-                        onClick={() => void handleInstallGateway()}
-                        disabled={isInstallingGateway}
-                        className="ml-4 shrink-0"
-                      >
-                        {isInstallingGateway
-                          ? t("gateway.installing")
-                          : t("gateway.install")}
-                      </RippleButton>
-                    </div>
-                  )}
-                  {gatewayInstalled === true && (
-                    <div className="flex items-center gap-2 rounded-md border border-success/50 bg-success/10 px-3 py-2 text-sm">
-                      <div className="h-2 w-2 rounded-full bg-success shrink-0" />
-                      <span className="text-success-foreground">
-                        {t("gateway.installed")}
-                      </span>
-                    </div>
-                  )}
+                  <GatewayBanner
+                    gatewayInstalled={gatewayInstalled}
+                    isInstallingGateway={isInstallingGateway}
+                    onInstall={() => void handleInstallGateway()}
+                    showInstalled
+                    t={t}
+                  />
                   <div className="flex justify-between items-center">
                     <div className="flex gap-2">
                       <RippleButton
@@ -1284,6 +1252,15 @@ export function ProxyManagementDialog({
 
               <TabsContent value="subscriptions" className="mt-4">
                 <div className="space-y-4">
+                  {gatewayInstalled === false && subscriptionNeedsGateway && (
+                    <GatewayBanner
+                      gatewayInstalled={gatewayInstalled}
+                      isInstallingGateway={isInstallingGateway}
+                      onInstall={() => void handleInstallGateway()}
+                      t={t}
+                    />
+                  )}
+
                   <div className="flex justify-between items-center">
                     <RippleButton
                       size="sm"
@@ -1373,22 +1350,6 @@ export function ProxyManagementDialog({
                             )}
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => handleImportAllNodes(sub.id)}
-                                  disabled={importingAllSubId === sub.id}
-                                >
-                                  <LuDownload className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                {t("subscriptionPool.importAll")}
-                              </TooltipContent>
-                            </Tooltip>
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
@@ -1531,16 +1492,15 @@ export function ProxyManagementDialog({
                         </TableHeader>
                         <TableBody>
                           {filteredPoolNodes.map((node) => {
-                            const isImportable = isNodeImportable(node);
+                            const isSupported = isNodeSupported(node);
                             const needsGw = nodeNeedsGateway(node);
-                            const isImported = !!node.stored_proxy_id;
 
                             return (
                               <TableRow key={node.id}>
                                 <TableCell>
                                   <Badge
                                     variant={
-                                      isImportable ? "default" : "secondary"
+                                      isSupported ? "default" : "secondary"
                                     }
                                   >
                                     {node.protocol.toUpperCase()}
@@ -1559,14 +1519,7 @@ export function ProxyManagementDialog({
                                   </Tooltip>
                                 </TableCell>
                                 <TableCell>
-                                  {isImported ? (
-                                    <Badge
-                                      variant="outline"
-                                      className="border-success text-success"
-                                    >
-                                      {t("subscriptionPool.imported")}
-                                    </Badge>
-                                  ) : isImportable ? (
+                                  {isSupported ? (
                                     <Badge variant="outline">
                                       {t("subscriptionPool.supported")}
                                     </Badge>
@@ -1604,19 +1557,6 @@ export function ProxyManagementDialog({
                                 </TableCell>
                                 <TableCell className="text-right">
                                   <div className="flex items-center justify-end gap-1">
-                                    {isImportable && !isImported && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() =>
-                                          handleImportNode(node.id)
-                                        }
-                                        disabled={importingNodeId === node.id}
-                                      >
-                                        <LuDownload className="mr-1 h-3 w-3" />
-                                        {t("subscriptionPool.importNode")}
-                                      </Button>
-                                    )}
                                     <Button
                                       variant="ghost"
                                       size="sm"

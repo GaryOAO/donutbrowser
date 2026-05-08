@@ -1659,9 +1659,6 @@
     "refresh": "更新",
     "refreshAll": "すべて更新",
     "delete": "削除",
-    "importAll": "サポートされたノードをすべてインポート",
-    "importNode": "インポート",
-    "imported": "インポート済み",
     "testLatency": "テスト",
     "testing": "テスト中...",
     "latencyMs": "{{ms}}ms",
@@ -1679,9 +1676,6 @@
     "refreshError": "サブスクリプションの更新に失敗しました",
     "deleteSuccess": "サブスクリプションが削除されました",
     "deleteError": "サブスクリプションの削除に失敗しました",
-    "importSuccess": "{{count}}ノードをプロキシとしてインポートしました",
-    "importNodeSuccess": "ノードをプロキシとしてインポートしました",
-    "importError": "ノードのインポートに失敗しました",
     "lastUpdated": "最終更新: {{time}}",
     "nodeCount": "{{count}}ノード",
     "fetchError": "取得エラー: {{error}}",
@@ -1691,8 +1685,7 @@
     "requiresGateway": "ローカルゲートウェイ経由でルーティング (mihomo)",
     "testAll": "全ノードテスト",
     "testAllResult": "{{success}}個到達可能、{{fail}}個到達不能",
-    "gatewayRequired": "ゲートウェイ経由",
-    "importGatewayHint": "プロキシとして 0 個のノードがインポートされました。{{count}} 個のノードはゲートウェイ経由で動作します — プロフィールで直接バインドしてください。"
+    "gatewayRequired": "ゲートウェイ経由"
   },
   "gateway": {
     "title": "プロキシゲートウェイ",

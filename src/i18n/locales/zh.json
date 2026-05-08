@@ -1659,9 +1659,6 @@
     "refresh": "刷新",
     "refreshAll": "全部刷新",
     "delete": "删除",
-    "importAll": "导入所有支持的节点",
-    "importNode": "导入",
-    "imported": "已导入",
     "testLatency": "测试",
     "testing": "测试中...",
     "latencyMs": "{{ms}}ms",
@@ -1679,9 +1676,6 @@
     "refreshError": "刷新订阅失败",
     "deleteSuccess": "订阅已删除",
     "deleteError": "删除订阅失败",
-    "importSuccess": "已导入 {{count}} 个节点为代理",
-    "importNodeSuccess": "节点已导入为代理",
-    "importError": "导入节点失败",
     "lastUpdated": "最后更新: {{time}}",
     "nodeCount": "{{count}} 个节点",
     "fetchError": "获取错误: {{error}}",
@@ -1691,8 +1685,7 @@
     "requiresGateway": "通过本地网关转发 (mihomo)",
     "testAll": "测试所有节点",
     "testAllResult": "{{success}} 个可达，{{fail}} 个不可达",
-    "gatewayRequired": "通过网关",
-    "importGatewayHint": "0 个节点导入为代理。{{count}} 个节点通过网关工作，可直接在配置文件中绑定。"
+    "gatewayRequired": "通过网关"
   },
   "gateway": {
     "title": "代理网关",

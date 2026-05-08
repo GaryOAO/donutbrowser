@@ -1659,9 +1659,6 @@
     "refresh": "Actualiser",
     "refreshAll": "Tout Actualiser",
     "delete": "Supprimer",
-    "importAll": "Importer Tous les Supportés",
-    "importNode": "Importer",
-    "imported": "Importé",
     "testLatency": "Tester",
     "testing": "Test en cours...",
     "latencyMs": "{{ms}}ms",
@@ -1679,9 +1676,6 @@
     "refreshError": "Échec de l'actualisation de l'abonnement",
     "deleteSuccess": "Abonnement supprimé",
     "deleteError": "Échec de la suppression de l'abonnement",
-    "importSuccess": "{{count}} nœuds importés comme proxies",
-    "importNodeSuccess": "Nœud importé comme proxy",
-    "importError": "Échec de l'importation du nœud",
     "lastUpdated": "Dernière mise à jour: {{time}}",
     "nodeCount": "{{count}} nœuds",
     "fetchError": "Erreur de récupération: {{error}}",
@@ -1691,8 +1685,7 @@
     "requiresGateway": "Acheminé via la passerelle locale (mihomo)",
     "testAll": "Tester Tous",
     "testAllResult": "{{success}} joignables, {{fail}} injoignables",
-    "gatewayRequired": "Via passerelle",
-    "importGatewayHint": "0 nœud importé en proxy. {{count}} nœuds fonctionnent via la passerelle — liez-les directement dans le profil."
+    "gatewayRequired": "Via passerelle"
   },
   "gateway": {
     "title": "Passerelle Proxy",

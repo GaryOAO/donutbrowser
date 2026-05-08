@@ -1659,9 +1659,6 @@
     "refresh": "Refresh",
     "refreshAll": "Refresh All",
     "delete": "Delete",
-    "importAll": "Import All Supported",
-    "importNode": "Import",
-    "imported": "Imported",
     "testLatency": "Test",
     "testing": "Testing...",
     "latencyMs": "{{ms}}ms",
@@ -1679,9 +1676,6 @@
     "refreshError": "Failed to refresh subscription",
     "deleteSuccess": "Subscription deleted",
     "deleteError": "Failed to delete subscription",
-    "importSuccess": "Imported {{count}} nodes as proxies",
-    "importNodeSuccess": "Node imported as proxy",
-    "importError": "Failed to import node",
     "lastUpdated": "Last updated: {{time}}",
     "nodeCount": "{{count}} nodes",
     "fetchError": "Fetch error: {{error}}",
@@ -1691,8 +1685,7 @@
     "requiresGateway": "Routed through local gateway (mihomo)",
     "testAll": "Test All Nodes",
     "testAllResult": "{{success}} reachable, {{fail}} unreachable",
-    "gatewayRequired": "Via Gateway",
-    "importGatewayHint": "0 nodes imported as proxies. {{count}} nodes work via gateway — bind them directly in profile settings."
+    "gatewayRequired": "Via Gateway"
   },
   "gateway": {
     "title": "Proxy Gateway",
