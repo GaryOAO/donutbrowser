@@ -1658,6 +1658,8 @@ pub fn run() {
         }
       }
 
+      crate::mihomo_manager::MihomoManager::instance().cleanup_orphans();
+
       // Clear stale process IDs from profiles (processes that died while app was closed)
       {
         let profile_manager = crate::profile::ProfileManager::instance();

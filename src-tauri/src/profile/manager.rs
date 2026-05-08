@@ -1245,6 +1245,7 @@ impl ProfileManager {
     // Update proxy settings and clear VPN (mutual exclusion)
     profile.proxy_id = proxy_id.clone();
     profile.vpn_id = None;
+    profile.proxy_source = None;
 
     // Save the updated profile
     self

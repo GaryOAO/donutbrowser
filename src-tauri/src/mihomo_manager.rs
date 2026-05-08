@@ -31,6 +31,7 @@ pub struct GatewayStatus {
 
 pub struct MihomoManager {
   instances: Mutex<HashMap<String, GatewayInstance>>,
+  ref_counts: Mutex<HashMap<String, usize>>,
   binary_path: Mutex<Option<PathBuf>>,
 }
 
@@ -38,6 +39,7 @@ impl MihomoManager {
   pub fn new() -> Self {
     Self {
       instances: Mutex::new(HashMap::new()),
+      ref_counts: Mutex::new(HashMap::new()),
       binary_path: Mutex::new(None),
     }
   }
@@ -242,19 +244,28 @@ impl MihomoManager {
     }
   }
 
+  fn escape_yaml_string(s: &str) -> String {
+    format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
+  }
+
   pub fn generate_config(node: &NodeConfig<'_>, socks_port: u16, http_port: u16) -> String {
+    let node_name = Self::escape_yaml_string(node.name);
+    let node_server = Self::escape_yaml_string(node.server);
     let mut proxy_fields = format!(
-      "  - name: \"{}\"\n    type: {}\n    server: {}\n    port: {}",
-      node.name, node.protocol, node.server, node.port
+      "  - name: {node_name}\n    type: {}\n    server: {node_server}\n    port: {}",
+      node.protocol, node.port
     );
     if let Some(pwd) = node.password {
       if !pwd.is_empty() {
-        proxy_fields.push_str(&format!("\n    password: \"{pwd}\""));
+        proxy_fields.push_str(&format!(
+          "\n    password: {}",
+          Self::escape_yaml_string(pwd)
+        ));
       }
     }
     for (k, v) in node.extra {
       let val_str = match v {
-        serde_json::Value::String(s) => format!("\"{s}\""),
+        serde_json::Value::String(s) => Self::escape_yaml_string(s),
         serde_json::Value::Bool(b) => b.to_string(),
         serde_json::Value::Number(n) => n.to_string(),
         serde_json::Value::Object(_) | serde_json::Value::Array(_) => {
@@ -266,8 +277,7 @@ impl MihomoManager {
     }
 
     format!(
-      "mixed-port: {http_port}\nsocks-port: {socks_port}\nallow-lan: false\nmode: global\nlog-level: warning\nproxies:\n{proxy_fields}\nproxy-groups:\n  - name: GLOBAL\n    type: select\n    proxies:\n      - \"{}\"\nrules:\n  - MATCH,GLOBAL\n",
-      node.name
+      "mixed-port: {http_port}\nsocks-port: {socks_port}\nallow-lan: false\nmode: global\nlog-level: warning\nproxies:\n{proxy_fields}\nproxy-groups:\n  - name: GLOBAL\n    type: select\n    proxies:\n      - {node_name}\nrules:\n  - MATCH,GLOBAL\n"
     )
   }
 
@@ -277,6 +287,8 @@ impl MihomoManager {
     node: &NodeConfig<'_>,
   ) -> Result<GatewayInstance, String> {
     if let Some(existing) = self.get_instance(node_id) {
+      let mut ref_counts = self.ref_counts.lock().unwrap();
+      *ref_counts.entry(node_id.to_string()).or_insert(0) += 1;
       return Ok(existing);
     }
 
@@ -331,11 +343,46 @@ impl MihomoManager {
       let mut instances = self.instances.lock().unwrap();
       instances.insert(node_id.to_string(), instance.clone());
     }
+    {
+      let mut ref_counts = self.ref_counts.lock().unwrap();
+      ref_counts.insert(node_id.to_string(), 1);
+    }
 
     Ok(instance)
   }
 
   pub fn stop_for_node(&self, node_id: &str) -> Result<(), String> {
+    let should_stop = {
+      let mut ref_counts = self.ref_counts.lock().unwrap();
+      if let Some(count) = ref_counts.get_mut(node_id) {
+        if *count > 1 {
+          *count -= 1;
+          false
+        } else {
+          ref_counts.remove(node_id);
+          true
+        }
+      } else {
+        true
+      }
+    };
+
+    if should_stop {
+      self.stop_instance(node_id);
+    }
+
+    Ok(())
+  }
+
+  pub fn force_stop_for_node(&self, node_id: &str) {
+    {
+      let mut ref_counts = self.ref_counts.lock().unwrap();
+      ref_counts.remove(node_id);
+    }
+    self.stop_instance(node_id);
+  }
+
+  fn stop_instance(&self, node_id: &str) {
     let instance = {
       let mut instances = self.instances.lock().unwrap();
       instances.remove(node_id)
@@ -368,8 +415,6 @@ impl MihomoManager {
       let config_path = Self::mihomo_dir().join(format!("config-{safe_node_id}.yaml"));
       let _ = fs::remove_file(&config_path);
     }
-
-    Ok(())
   }
 
   #[allow(dead_code)]
@@ -379,7 +424,37 @@ impl MihomoManager {
       instances.keys().cloned().collect()
     };
     for node_id in node_ids {
-      let _ = self.stop_for_node(&node_id);
+      self.force_stop_for_node(&node_id);
+    }
+  }
+
+  pub fn cleanup_orphans(&self) {
+    let dir = Self::mihomo_dir();
+    let dir_str = dir.to_string_lossy();
+    let system = sysinfo::System::new_with_specifics(
+      sysinfo::RefreshKind::nothing().with_processes(sysinfo::ProcessRefreshKind::everything()),
+    );
+
+    for process in system.processes().values() {
+      let cmd_matches = process
+        .cmd()
+        .iter()
+        .any(|arg| arg.to_string_lossy().contains(dir_str.as_ref()));
+      if cmd_matches {
+        let _ = process.kill();
+      }
+    }
+
+    if let Ok(entries) = fs::read_dir(&dir) {
+      for entry in entries.flatten() {
+        let path = entry.path();
+        let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
+          continue;
+        };
+        if file_name.starts_with("config-") && file_name.ends_with(".yaml") {
+          let _ = fs::remove_file(path);
+        }
+      }
     }
   }
 
@@ -407,7 +482,28 @@ mod tests {
   fn test_find_free_port() {
     let port = find_free_port(19000);
     assert!(port >= 19000);
-    assert!(std::net::TcpListener::bind(("127.0.0.1", port)).is_ok());
+    match std::net::TcpListener::bind(("127.0.0.1", port)) {
+      Ok(_listener) => {}
+      Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {}
+      Err(e) => panic!("failed to bind reported free port {port}: {e}"),
+    }
+  }
+
+  #[test]
+  fn test_yaml_escape() {
+    assert_eq!(MihomoManager::escape_yaml_string(""), "\"\"");
+    assert_eq!(
+      MihomoManager::escape_yaml_string("hello \"world\""),
+      "\"hello \\\"world\\\"\""
+    );
+    assert_eq!(
+      MihomoManager::escape_yaml_string(r"hello\world"),
+      r#""hello\\world""#
+    );
+    assert_eq!(
+      MihomoManager::escape_yaml_string("hello\nworld"),
+      "\"hello\nworld\""
+    );
   }
 
   #[test]
@@ -425,10 +521,70 @@ mod tests {
     assert!(config.contains("mixed-port: 17001"));
     assert!(config.contains("socks-port: 17000"));
     assert!(config.contains("type: vless"));
-    assert!(config.contains("server: 1.2.3.4"));
+    assert!(config.contains("server: \"1.2.3.4\""));
     assert!(config.contains("port: 1234"));
     assert!(config.contains("password: \"secret\""));
     assert!(config.contains("MATCH,GLOBAL"));
+  }
+
+  #[test]
+  fn test_refcount_lifecycle() {
+    let manager = MihomoManager::new();
+    let node_id = "node-1".to_string();
+    let instance = GatewayInstance {
+      node_id: node_id.clone(),
+      local_socks_port: 17000,
+      local_http_port: 17001,
+      pid: None,
+    };
+
+    manager
+      .instances
+      .lock()
+      .unwrap()
+      .insert(node_id.clone(), instance);
+    manager
+      .ref_counts
+      .lock()
+      .unwrap()
+      .insert(node_id.clone(), 2);
+
+    manager.stop_for_node(&node_id).unwrap();
+    assert!(manager.get_instance(&node_id).is_some());
+    assert_eq!(
+      manager.ref_counts.lock().unwrap().get(&node_id).copied(),
+      Some(1)
+    );
+
+    manager.stop_for_node(&node_id).unwrap();
+    assert!(manager.get_instance(&node_id).is_none());
+    assert!(!manager.ref_counts.lock().unwrap().contains_key(&node_id));
+
+    let force_node_id = "node-2".to_string();
+    let force_instance = GatewayInstance {
+      node_id: force_node_id.clone(),
+      local_socks_port: 17002,
+      local_http_port: 17003,
+      pid: None,
+    };
+    manager
+      .instances
+      .lock()
+      .unwrap()
+      .insert(force_node_id.clone(), force_instance);
+    manager
+      .ref_counts
+      .lock()
+      .unwrap()
+      .insert(force_node_id.clone(), 3);
+
+    manager.force_stop_for_node(&force_node_id);
+    assert!(manager.get_instance(&force_node_id).is_none());
+    assert!(!manager
+      .ref_counts
+      .lock()
+      .unwrap()
+      .contains_key(&force_node_id));
   }
 
   #[test]
