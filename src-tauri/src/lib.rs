@@ -2475,6 +2475,8 @@ mod tests {
       "generate_sample_fingerprint",
       "cloud_get_wayfern_token",
       "cloud_refresh_wayfern_token",
+      // Legacy proxy-id-only path; frontend now uses set_profile_proxy_source.
+      "update_profile_proxy",
       // Backend control-plane commands used by the proxy pool UI/API roadmap.
       "clash_list_groups",
       "clash_switch_proxy",

@@ -86,8 +86,8 @@ import type {
   BrowserProfile,
   LocationItem,
   PoolNode,
-  ProxySource,
   ProxyCheckResult,
+  ProxySource,
   StoredProxy,
   Subscription,
   SyncSessionInfo,
@@ -2627,9 +2627,7 @@ export function ProfilesDataTable({
                         >
                           {nodesBySubscription.length === 0 ? (
                             <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                              {t(
-                                "profiles.table.proxyPicker.noSubscriptions",
-                              )}
+                              {t("profiles.table.proxyPicker.noSubscriptions")}
                             </div>
                           ) : (
                             nodesBySubscription.map(

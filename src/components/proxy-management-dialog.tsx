@@ -137,9 +137,7 @@ function GatewayBanner({
             <p className="font-medium text-warning-foreground">
               {t("gateway.notInstalled")}
             </p>
-            <p className="text-muted-foreground">
-              {t("gateway.description")}
-            </p>
+            <p className="text-muted-foreground">{t("gateway.description")}</p>
           </div>
           <RippleButton
             size="sm"
