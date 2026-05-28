@@ -37,6 +37,12 @@ interface ProxyFormDialogProps {
   isOpen: boolean;
   onClose: () => void;
   editingProxy?: StoredProxy | null;
+  /**
+   * Called with the freshly-created proxy after a successful `create_stored_proxy`
+   * invocation (not fired when editing an existing proxy). Lets parent flows
+   * (e.g. create-profile) auto-select the new proxy without re-querying.
+   */
+  onProxyCreated?: (proxy: StoredProxy) => void;
 }
 
 const DEFAULT_FORM: ProxyFormData = {
@@ -52,6 +58,7 @@ export function ProxyFormDialog({
   isOpen,
   onClose,
   editingProxy,
+  onProxyCreated,
 }: ProxyFormDialogProps) {
   const { t } = useTranslation();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -120,8 +127,12 @@ export function ProxyFormDialog({
         });
         toast.success(t("toasts.success.proxyUpdated"));
       } else {
-        await invoke("create_stored_proxy", payload);
+        const created = await invoke<StoredProxy>(
+          "create_stored_proxy",
+          payload,
+        );
         toast.success(t("toasts.success.proxyCreated"));
+        onProxyCreated?.(created);
       }
 
       onClose();
@@ -133,7 +144,7 @@ export function ProxyFormDialog({
     } finally {
       setIsSubmitting(false);
     }
-  }, [editingProxy, form, onClose, t]);
+  }, [editingProxy, form, onClose, t, onProxyCreated]);
 
   const handleClose = useCallback(() => {
     if (!isSubmitting) {

@@ -73,10 +73,29 @@ impl ProfileManager {
     ephemeral: bool,
     dns_blocklist: Option<String>,
     launch_hook: Option<String>,
+    proxy_source: Option<crate::profile::types::ProxySource>,
   ) -> Result<BrowserProfile, Box<dyn std::error::Error>> {
     if proxy_id.is_some() && vpn_id.is_some() {
       return Err("Cannot set both proxy_id and vpn_id".into());
     }
+
+    // When the caller supplies a structured proxy_source we let it own the
+    // assignment. For StoredProxy we still mirror it to proxy_id so the
+    // legacy launch path keeps working; for SubscriptionNode we leave
+    // proxy_id empty and rely on the clash pool resolver at launch time.
+    let (proxy_id, proxy_source) = match proxy_source {
+      Some(crate::profile::types::ProxySource::StoredProxy(id)) => (
+        Some(id.clone()),
+        Some(crate::profile::types::ProxySource::StoredProxy(id)),
+      ),
+      Some(crate::profile::types::ProxySource::SubscriptionNode(node_id)) => (
+        None,
+        Some(crate::profile::types::ProxySource::SubscriptionNode(
+          node_id,
+        )),
+      ),
+      None => (proxy_id, None),
+    };
 
     let launch_hook = Self::normalize_launch_hook(launch_hook)?;
     let proxy_binding_mode = if vpn_id.is_some() {
@@ -95,27 +114,57 @@ impl ProfileManager {
 
     log::info!("Attempting to create profile: {name}");
 
-    // Check if a profile with this name already exists (case insensitive)
-    let existing_profiles = self.list_profiles()?;
-    if existing_profiles
-      .iter()
-      .any(|p| p.name.to_lowercase() == name.to_lowercase())
-    {
-      return Err(format!("Profile with name '{name}' already exists").into());
-    }
+    // Serialize the name-uniqueness check + slot reservation so two parallel
+    // create_profile calls with the same name can't both pass the check.
+    // The lock is held only across the synchronous reserve sequence (no .await),
+    // then dropped before any async work (fingerprint generation, etc.).
+    let (profile_id, profile_data_dir, profile_file) = {
+      let _name_uniqueness_guard = NAME_UNIQUENESS_LOCK
+        .lock()
+        .unwrap_or_else(|p| p.into_inner());
 
-    // Generate a new UUID for this profile
-    let profile_id = uuid::Uuid::new_v4();
-    let profiles_dir = self.get_profiles_dir();
-    let profile_uuid_dir = profiles_dir.join(profile_id.to_string());
-    let profile_data_dir = profile_uuid_dir.join("profile");
-    let profile_file = profile_uuid_dir.join("metadata.json");
+      // Check if a profile with this name already exists (case insensitive)
+      let existing_profiles = self.list_profiles()?;
+      if existing_profiles
+        .iter()
+        .any(|p| p.name.to_lowercase() == name.to_lowercase())
+      {
+        return Err(format!("Profile with name '{name}' already exists").into());
+      }
 
-    // Create profile directory with UUID and profile subdirectory
-    create_dir_all(&profile_uuid_dir)?;
-    if !ephemeral {
-      create_dir_all(&profile_data_dir)?;
-    }
+      // Reserve a profile slot before releasing the lock so a concurrent
+      // same-name request sees it via list_profiles and is rejected.
+      let profile_id = uuid::Uuid::new_v4();
+      let profiles_dir = self.get_profiles_dir();
+      let profile_uuid_dir = profiles_dir.join(profile_id.to_string());
+      let profile_data_dir = profile_uuid_dir.join("profile");
+      let profile_file = profile_uuid_dir.join("metadata.json");
+
+      create_dir_all(&profile_uuid_dir)?;
+      if !ephemeral {
+        create_dir_all(&profile_data_dir)?;
+      }
+
+      // Write a minimal placeholder so the name is visible to concurrent
+      // list_profiles immediately. It will be overwritten by save_profile below.
+      let placeholder = serde_json::json!({
+        "id": profile_id.to_string(),
+        "name": name,
+        "browser": browser,
+        "version": version,
+        "release_type": release_type,
+        "proxy_binding_mode": "fixed_node",
+        "sync_mode": "Disabled",
+        "ephemeral": ephemeral,
+        "tags": [],
+        "proxy_bypass_rules": []
+      });
+      if let Ok(json) = serde_json::to_string_pretty(&placeholder) {
+        let _ = fs::write(&profile_file, json);
+      }
+
+      (profile_id, profile_data_dir, profile_file)
+    };
 
     // For Camoufox profiles, generate fingerprint during creation
     let final_camoufox_config = if browser == "camoufox" {
@@ -332,7 +381,7 @@ impl ProfileManager {
       browser: browser.to_string(),
       version: version.to_string(),
       proxy_id: proxy_id.clone(),
-      proxy_source: None,
+      proxy_source: proxy_source.clone(),
       proxy_binding_mode,
       vpn_id: vpn_id.clone(),
       launch_hook,
@@ -1295,6 +1344,62 @@ impl ProfileManager {
         })?;
     }
 
+    // If the browser is currently running, hot-swap the local proxy worker so
+    // the change takes effect immediately. Without this, the profile metadata
+    // and user.js are updated but live traffic still flows through the old
+    // upstream because the worker is keyed to it.
+    if let Some(pid) = profile.process_id {
+      if crate::proxy_storage::is_process_running(pid) {
+        let new_upstream = proxy_id
+          .as_ref()
+          .and_then(|id| PROXY_MANAGER.get_proxy_settings_by_id(id));
+        let blocklist_file = crate::browser_runner::BrowserRunner::resolve_blocklist_file(&profile)
+          .await
+          .ok()
+          .flatten();
+        let pid_str = profile.id.to_string();
+        match PROXY_MANAGER
+          .restart_local_proxy_for_running_profile(
+            app_handle.clone(),
+            &pid_str,
+            new_upstream.as_ref(),
+            profile.proxy_bypass_rules.clone(),
+            blocklist_file,
+          )
+          .await
+        {
+          Ok(()) => {
+            log::info!(
+              "Hot-swapped local proxy worker for running profile '{}' (ID: {})",
+              profile.name,
+              profile_id
+            );
+            if let Err(e) = events::emit("profile-proxy-hot-swapped", &profile) {
+              log::warn!("Warning: Failed to emit profile-proxy-hot-swapped: {e}");
+            }
+          }
+          Err(e) => {
+            log::warn!(
+              "Failed to hot-swap proxy for running profile '{}' (ID: {}): {e}. Restart the profile to apply the change.",
+              profile.name,
+              profile_id
+            );
+          }
+        }
+      } else {
+        // Stale process_id — the browser is gone but the field was never cleared.
+        log::info!(
+          "Clearing stale process_id {} for profile '{}' during proxy update",
+          pid,
+          profile.name
+        );
+        profile.process_id = None;
+        if let Err(e) = self.save_profile(&profile) {
+          log::warn!("Warning: Failed to clear stale process_id: {e}");
+        }
+      }
+    }
+
     // Emit profile update event so frontend UIs can refresh immediately (e.g. proxy manager)
     if let Err(e) = events::emit("profile-updated", &profile) {
       log::warn!("Warning: Failed to emit profile update event: {e}");
@@ -2171,6 +2276,7 @@ pub async fn create_browser_profile_with_group(
   ephemeral: bool,
   dns_blocklist: Option<String>,
   launch_hook: Option<String>,
+  proxy_source: Option<crate::profile::types::ProxySource>,
 ) -> Result<BrowserProfile, String> {
   let profile_manager = ProfileManager::instance();
   profile_manager
@@ -2189,6 +2295,7 @@ pub async fn create_browser_profile_with_group(
       ephemeral,
       dns_blocklist,
       launch_hook,
+      proxy_source,
     )
     .await
     .map_err(|e| format!("Failed to create profile: {e}"))
@@ -2328,6 +2435,7 @@ pub async fn create_browser_profile_new(
   ephemeral: Option<bool>,
   dns_blocklist: Option<String>,
   launch_hook: Option<String>,
+  proxy_source: Option<crate::profile::types::ProxySource>,
 ) -> Result<BrowserProfile, String> {
   let fingerprint_os = camoufox_config
     .as_ref()
@@ -2358,6 +2466,7 @@ pub async fn create_browser_profile_new(
     ephemeral.unwrap_or(false),
     dns_blocklist,
     launch_hook,
+    proxy_source,
   )
   .await
 }
@@ -2462,4 +2571,5 @@ pub fn empty_trash(app_handle: tauri::AppHandle) -> Result<u32, String> {
 
 lazy_static::lazy_static! {
   pub static ref PROFILE_MANAGER: ProfileManager = ProfileManager::new();
+  static ref NAME_UNIQUENESS_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 }

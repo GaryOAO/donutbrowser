@@ -67,9 +67,15 @@ export function usePermissions(): UsePermissionsReturn {
   }, [currentPlatform]);
 
   // Request permission
+  // Cap the post-request polling at 60 seconds. The previous implementation
+  // recursed forever via setTimeout, so after a user denied the macOS prompt
+  // the hook would burn CPU on a 1Hz checkPermission call for the rest of the
+  // session.
   const requestPermission = useCallback(
     async (type: PermissionType): Promise<void> => {
       if (!currentPlatform || currentPlatform !== "macos") return;
+
+      const MAX_POLL_ATTEMPTS = 60;
 
       // macOS - use the permissions API
       try {
@@ -79,14 +85,13 @@ export function usePermissions(): UsePermissionsReturn {
         if (type === "microphone") {
           await permissions.requestMicrophonePermission();
 
-          // Poll for permission status change
-          const pollMicPermission = async () => {
+          const pollMicPermission = async (attempt = 0) => {
             const granted = await permissions.checkMicrophonePermission();
             setIsMicrophoneAccessGranted(granted);
 
-            if (!granted) {
+            if (!granted && attempt < MAX_POLL_ATTEMPTS) {
               setTimeout(() => {
-                void pollMicPermission();
+                void pollMicPermission(attempt + 1);
               }, 1000);
             }
           };
@@ -97,14 +102,13 @@ export function usePermissions(): UsePermissionsReturn {
         if (type === "camera") {
           await permissions.requestCameraPermission();
 
-          // Poll for permission status change
-          const pollCamPermission = async () => {
+          const pollCamPermission = async (attempt = 0) => {
             const granted = await permissions.checkCameraPermission();
             setIsCameraAccessGranted(granted);
 
-            if (!granted) {
+            if (!granted && attempt < MAX_POLL_ATTEMPTS) {
               setTimeout(() => {
-                void pollCamPermission();
+                void pollCamPermission(attempt + 1);
               }, 1000);
             }
           };

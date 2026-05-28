@@ -170,7 +170,7 @@ impl SettingsManager {
 
     let settings_file = self.get_settings_file();
     let json = serde_json::to_string_pretty(settings)?;
-    fs::write(settings_file, json)?;
+    crate::atomic_write::atomic_write_bytes(&settings_file, json.as_bytes())?;
 
     Ok(())
   }
@@ -197,7 +197,7 @@ impl SettingsManager {
 
     let sorting_file = self.get_table_sorting_file();
     let json = serde_json::to_string_pretty(sorting)?;
-    fs::write(sorting_file, json)?;
+    crate::atomic_write::atomic_write_bytes(&sorting_file, json.as_bytes())?;
 
     Ok(())
   }

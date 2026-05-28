@@ -1481,6 +1481,38 @@ impl AppAutoUpdater {
 
   /// Restart the application
   async fn restart_application(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // Refuse to exit out from under running browser profiles. Without this,
+    // an auto-update restart calls std::process::exit(0) and orphans every
+    // child Chromium/Camoufox, losing unsaved tabs and SingletonLocking the
+    // user_data_dir until the user manually cleans up.
+    if let Ok(profiles) = crate::browser_runner::BrowserRunner::instance()
+      .profile_manager
+      .list_profiles()
+    {
+      let running: Vec<String> = profiles
+        .into_iter()
+        .filter(|p| p.process_id.is_some())
+        .map(|p| p.name)
+        .collect();
+      if !running.is_empty() {
+        log::warn!(
+          "Refusing to restart: {} profile(s) still running: {:?}",
+          running.len(),
+          running
+        );
+        // Return a structured error so the frontend can route to a
+        // "Stop all & update" / "Postpone" dialog instead of just logging.
+        return Err(
+          format!(
+            "Cannot restart: {} profile(s) still running ({}). Stop them and try again.",
+            running.len(),
+            running.join(", ")
+          )
+          .into(),
+        );
+      }
+    }
+
     #[cfg(target_os = "macos")]
     {
       let app_path = self.get_current_app_path()?;

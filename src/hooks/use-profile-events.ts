@@ -12,6 +12,7 @@ interface UseProfileEventsReturn {
   error: string | null;
   loadProfiles: () => Promise<void>;
   loadGroups: () => Promise<void>;
+  refreshRunningStates: () => Promise<void>;
   clearError: () => void;
 }
 
@@ -122,61 +123,51 @@ export function useProfileEvents(): UseProfileEventsReturn {
     };
   }, [loadProfiles, loadGroups]);
 
-  // Sync profile running states periodically to ensure consistency
-  useEffect(() => {
-    const syncRunningStates = async () => {
-      if (profiles.length === 0) return;
+  // Manual refresh of running states. The backend status checker (see
+  // `lib.rs`) already pushes `profile-running-changed` events for every
+  // launch/exit/kill/crash, so this is exposed only for explicit user-driven
+  // refresh actions (e.g. a "Refresh" button) — it is intentionally NOT run
+  // on a timer to avoid N concurrent IPC calls every interval.
+  const refreshRunningStates = useCallback(async () => {
+    if (profiles.length === 0) return;
 
-      try {
-        const statusChecks = profiles.map(async (profile) => {
-          try {
-            const isRunning = await invoke<boolean>("check_browser_status", {
-              profile,
-            });
-            return { id: profile.id, isRunning };
-          } catch (error) {
-            console.error(
-              `Failed to check status for profile ${profile.name}:`,
-              error,
-            );
-            return { id: profile.id, isRunning: false };
+    try {
+      const statusChecks = profiles.map(async (profile) => {
+        try {
+          const isRunning = await invoke<boolean>("check_browser_status", {
+            profile,
+          });
+          return { id: profile.id, isRunning };
+        } catch (error) {
+          console.error(
+            `Failed to check status for profile ${profile.name}:`,
+            error,
+          );
+          return { id: profile.id, isRunning: false };
+        }
+      });
+
+      const statuses = await Promise.all(statusChecks);
+
+      setRunningProfiles((prev) => {
+        const next = new Set(prev);
+        let hasChanges = false;
+
+        statuses.forEach(({ id, isRunning }) => {
+          if (isRunning && !prev.has(id)) {
+            next.add(id);
+            hasChanges = true;
+          } else if (!isRunning && prev.has(id)) {
+            next.delete(id);
+            hasChanges = true;
           }
         });
 
-        const statuses = await Promise.all(statusChecks);
-
-        setRunningProfiles((prev) => {
-          const next = new Set(prev);
-          let hasChanges = false;
-
-          statuses.forEach(({ id, isRunning }) => {
-            if (isRunning && !prev.has(id)) {
-              next.add(id);
-              hasChanges = true;
-            } else if (!isRunning && prev.has(id)) {
-              next.delete(id);
-              hasChanges = true;
-            }
-          });
-
-          return hasChanges ? next : prev;
-        });
-      } catch (error) {
-        console.error("Failed to sync profile running states:", error);
-      }
-    };
-
-    // Initial sync
-    void syncRunningStates();
-
-    // Sync every 30 seconds to catch any missed events
-    const interval = setInterval(() => {
-      void syncRunningStates();
-    }, 30000);
-
-    return () => {
-      clearInterval(interval);
-    };
+        return hasChanges ? next : prev;
+      });
+    } catch (error) {
+      console.error("Failed to refresh profile running states:", error);
+    }
   }, [profiles]);
 
   return {
@@ -187,6 +178,7 @@ export function useProfileEvents(): UseProfileEventsReturn {
     error,
     loadProfiles,
     loadGroups,
+    refreshRunningStates,
     clearError,
   };
 }

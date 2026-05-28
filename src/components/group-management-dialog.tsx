@@ -6,9 +6,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GoPlus } from "react-icons/go";
 import { LuPencil, LuTrash2 } from "react-icons/lu";
-import { CreateGroupDialog } from "@/components/create-group-dialog";
+import { toast } from "sonner";
 import { DeleteGroupDialog } from "@/components/delete-group-dialog";
-import { EditGroupDialog } from "@/components/edit-group-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -20,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -105,13 +105,22 @@ export function GroupManagementDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Dialog states
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  // Inline create state (replaces nested CreateGroupDialog)
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [createName, setCreateName] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+
+  // Inline edit state (replaces nested EditGroupDialog)
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  // Delete dialog remains (it's a dangerous, complex op with radio choice)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<GroupWithCount | null>(
     null,
   );
+
   const [groupSyncStatus, setGroupSyncStatus] = useState<
     Record<string, SyncStatus>
   >({});
@@ -182,31 +191,58 @@ export function GroupManagementDialog({
     }
   }, [t]);
 
-  const handleGroupCreated = useCallback(
-    (_newGroup: ProfileGroup) => {
-      void loadGroups();
+  const handleCreate = useCallback(async () => {
+    if (!createName.trim()) return;
+    setIsCreating(true);
+    try {
+      await invoke<ProfileGroup>("create_profile_group", {
+        name: createName.trim(),
+      });
+      toast.success(t("groups.createSuccess"));
+      setCreateName("");
+      setShowCreateForm(false);
+      await loadGroups();
       onGroupManagementComplete();
-    },
-    [loadGroups, onGroupManagementComplete],
-  );
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : t("groups.createFailed");
+      toast.error(errorMessage);
+    } finally {
+      setIsCreating(false);
+    }
+  }, [createName, loadGroups, onGroupManagementComplete, t]);
 
-  const handleGroupUpdated = useCallback(
-    (_updatedGroup: ProfileGroup) => {
-      void loadGroups();
+  const handleSaveEdit = useCallback(async () => {
+    if (!editingId || !editName.trim()) return;
+    setIsSavingEdit(true);
+    try {
+      await invoke<ProfileGroup>("update_profile_group", {
+        groupId: editingId,
+        name: editName.trim(),
+      });
+      toast.success(t("groups.updateSuccess"));
+      setEditingId(null);
+      setEditName("");
+      await loadGroups();
       onGroupManagementComplete();
-    },
-    [loadGroups, onGroupManagementComplete],
-  );
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : t("groups.updateFailed");
+      toast.error(errorMessage);
+    } finally {
+      setIsSavingEdit(false);
+    }
+  }, [editingId, editName, loadGroups, onGroupManagementComplete, t]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingId(null);
+    setEditName("");
+  }, []);
 
   const handleGroupDeleted = useCallback(() => {
     void loadGroups();
     onGroupManagementComplete();
   }, [loadGroups, onGroupManagementComplete]);
-
-  const handleEditGroup = useCallback((group: GroupWithCount) => {
-    setSelectedGroup(group);
-    setEditDialogOpen(true);
-  }, []);
 
   const handleDeleteGroup = useCallback((group: GroupWithCount) => {
     setSelectedGroup(group);
@@ -244,6 +280,12 @@ export function GroupManagementDialog({
   useEffect(() => {
     if (isOpen) {
       void loadGroups();
+    } else {
+      // Reset inline state when dialog closes
+      setEditingId(null);
+      setEditName("");
+      setShowCreateForm(false);
+      setCreateName("");
     }
   }, [isOpen, loadGroups]);
 
@@ -259,13 +301,14 @@ export function GroupManagementDialog({
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* Create new group button */}
+            {/* Header: inline create */}
             <div className="flex justify-between items-center">
               <Label>{t("groupManagement.groupsLabel")}</Label>
               <RippleButton
                 size="sm"
                 onClick={() => {
-                  setCreateDialogOpen(true);
+                  setShowCreateForm((prev) => !prev);
+                  setCreateName("");
                 }}
                 className="flex gap-2 items-center"
               >
@@ -273,6 +316,45 @@ export function GroupManagementDialog({
                 {t("proxies.management.create")}
               </RippleButton>
             </div>
+
+            {showCreateForm && (
+              <div className="flex gap-2 items-center">
+                <Input
+                  autoFocus
+                  value={createName}
+                  onChange={(e) => {
+                    setCreateName(e.target.value);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && createName.trim()) {
+                      void handleCreate();
+                    } else if (e.key === "Escape") {
+                      setShowCreateForm(false);
+                      setCreateName("");
+                    }
+                  }}
+                  placeholder={t("groups.form.namePlaceholder")}
+                  className="flex-1"
+                />
+                <RippleButton
+                  size="sm"
+                  onClick={() => void handleCreate()}
+                  disabled={isCreating || !createName.trim()}
+                >
+                  {t("common.buttons.create")}
+                </RippleButton>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setShowCreateForm(false);
+                    setCreateName("");
+                  }}
+                >
+                  {t("common.buttons.cancel")}
+                </Button>
+              </div>
+            )}
 
             {error && (
               <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
@@ -302,7 +384,7 @@ export function GroupManagementDialog({
                         <TableHead className="w-24">
                           {t("proxies.management.syncCol")}
                         </TableHead>
-                        <TableHead className="w-24">
+                        <TableHead className="w-32">
                           {t("common.labels.actions")}
                         </TableHead>
                       </TableRow>
@@ -315,6 +397,7 @@ export function GroupManagementDialog({
                           t,
                           groupSyncErrors[group.id],
                         );
+                        const isEditing = editingId === group.id;
                         return (
                           <TableRow key={group.id}>
                             <TableCell className="font-medium">
@@ -331,7 +414,32 @@ export function GroupManagementDialog({
                                     <p>{syncDot.tooltip}</p>
                                   </TooltipContent>
                                 </Tooltip>
-                                {group.name}
+                                {isEditing ? (
+                                  <Input
+                                    autoFocus
+                                    value={editName}
+                                    onChange={(e) => {
+                                      setEditName(e.target.value);
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (
+                                        e.key === "Enter" &&
+                                        editName.trim()
+                                      ) {
+                                        void handleSaveEdit();
+                                      } else if (e.key === "Escape") {
+                                        handleCancelEdit();
+                                      }
+                                    }}
+                                    placeholder={t(
+                                      "groups.form.namePlaceholder",
+                                    )}
+                                    className="h-7 text-sm"
+                                    disabled={isSavingEdit}
+                                  />
+                                ) : (
+                                  group.name
+                                )}
                               </div>
                             </TableCell>
                             <TableCell>
@@ -370,42 +478,75 @@ export function GroupManagementDialog({
                             </TableCell>
                             <TableCell>
                               <div className="flex gap-1">
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
+                                {isEditing ? (
+                                  <>
+                                    <RippleButton
+                                      size="sm"
+                                      className="h-7 px-2 text-xs"
+                                      onClick={() => void handleSaveEdit()}
+                                      disabled={
+                                        isSavingEdit ||
+                                        !editName.trim() ||
+                                        editName === group.name
+                                      }
+                                    >
+                                      {t("common.buttons.save")}
+                                    </RippleButton>
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      onClick={() => {
-                                        handleEditGroup(group);
-                                      }}
+                                      className="h-7 px-2 text-xs"
+                                      onClick={handleCancelEdit}
+                                      disabled={isSavingEdit}
                                     >
-                                      <LuPencil className="w-4 h-4" />
+                                      {t("common.buttons.cancel")}
                                     </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>
-                                      {t("groupManagement.editGroupTooltip")}
-                                    </p>
-                                  </TooltipContent>
-                                </Tooltip>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => {
-                                        handleDeleteGroup(group);
-                                      }}
-                                    >
-                                      <LuTrash2 className="w-4 h-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>
-                                      {t("groupManagement.deleteGroupTooltip")}
-                                    </p>
-                                  </TooltipContent>
-                                </Tooltip>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => {
+                                            setEditingId(group.id);
+                                            setEditName(group.name);
+                                          }}
+                                        >
+                                          <LuPencil className="w-4 h-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>
+                                          {t(
+                                            "groupManagement.editGroupTooltip",
+                                          )}
+                                        </p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => {
+                                            handleDeleteGroup(group);
+                                          }}
+                                        >
+                                          <LuTrash2 className="w-4 h-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>
+                                          {t(
+                                            "groupManagement.deleteGroupTooltip",
+                                          )}
+                                        </p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </>
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>
@@ -425,23 +566,6 @@ export function GroupManagementDialog({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <CreateGroupDialog
-        isOpen={createDialogOpen}
-        onClose={() => {
-          setCreateDialogOpen(false);
-        }}
-        onGroupCreated={handleGroupCreated}
-      />
-
-      <EditGroupDialog
-        isOpen={editDialogOpen}
-        onClose={() => {
-          setEditDialogOpen(false);
-        }}
-        group={selectedGroup}
-        onGroupUpdated={handleGroupUpdated}
-      />
 
       <DeleteGroupDialog
         isOpen={deleteDialogOpen}

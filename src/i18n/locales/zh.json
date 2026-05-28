@@ -285,7 +285,9 @@
       "profile": "配置文件",
       "result": "结果",
       "time": "时间",
-      "runFailed": "批量任务失败"
+      "runFailed": "批量任务失败",
+      "cancel": "取消",
+      "progress": "{{completed}} / {{total}} 已完成"
     }
   },
   "createProfile": {
@@ -337,14 +339,33 @@
       "downloading": "正在下载 {{browser}} 版本 ({{version}})...",
       "latestNeedsDownload": "最新版本 ({{version}}) 需要下载",
       "latestAvailable": "最新版本 ({{version}}) 可用",
-      "latestDownloading": "正在下载版本 ({{version}})..."
+      "latestDownloading": "正在下载版本 ({{version}})...",
+      "preparing": "将在首次启动时准备浏览器二进制 (版本 {{version}})。"
     },
     "chromiumLabel": "Chromium",
     "chromiumSubtitle": "由 Wayfern 驱动",
     "firefoxLabel": "Firefox",
     "firefoxSubtitle": "由 Camoufox 驱动",
     "camoufoxWarning": "Firefox（Camoufox）由第三方组织维护。在生产环境中，请使用 Chromium。",
-    "platformUnavailable": "{{browser}} 在您的平台上尚不可用。"
+    "platformUnavailable": "{{browser}} 在您的平台上尚不可用。",
+    "browserLabel": "浏览器",
+    "networkSource": {
+      "title": "网络来源",
+      "description": "此配置文件的出站流量。选择已保存的代理、VPN 或订阅节点。",
+      "none": "无 (直连)",
+      "storedProxies": "已保存代理",
+      "vpns": "VPN",
+      "subscriptionHeading": "订阅：{{name}}",
+      "createNewProxy": "创建新代理...",
+      "search": "搜索代理、VPN 或节点...",
+      "notFound": "未找到匹配的来源。"
+    },
+    "advanced": {
+      "show": "高级选项",
+      "hide": "隐藏高级选项",
+      "fingerprint": "指纹"
+    },
+    "suggestedName": "配置文件 {{counter}}"
   },
   "deleteDialog": {
     "title": "删除配置文件",
@@ -627,7 +648,8 @@
     "toast": {
       "profileSynced": "配置文件 '{{name}}' 同步成功",
       "profileSyncFailed": "同步配置文件 '{{name}}' 失败",
-      "profileSyncFailedWithError": "同步配置文件 '{{name}}' 失败: {{error}}"
+      "profileSyncFailedWithError": "同步配置文件 '{{name}}' 失败: {{error}}",
+      "syncingProfile": "正在同步配置文件 '{{name}}'..."
     }
   },
   "integrations": {
@@ -873,7 +895,9 @@
       "exportSuccess": "成功导出 {{count}} 个项目",
       "syncSuccess": "同步成功完成",
       "profileSynced": "配置文件 '{{name}}' 同步成功",
-      "cacheCleared": "缓存清除成功"
+      "cacheCleared": "缓存清除成功",
+      "profilesAutoUpgraded": "{{count}} 个配置文件已自动升级到最新版本：{{names}}",
+      "bgBrowserDownloadCompleted": "{{browser}} {{version}} 已下载"
     },
     "error": {
       "profileCreateFailed": "创建配置文件失败",
@@ -903,7 +927,8 @@
       "syncing": "同步中...",
       "syncingProfile": "正在同步配置文件 '{{name}}'...",
       "syncingProfileWithProgress": "{{count}} 个文件 ({{size}})",
-      "updatingVersions": "正在更新浏览器版本..."
+      "updatingVersions": "正在更新浏览器版本...",
+      "bgBrowserDownload": "正在后台下载 {{browser}} {{version}}..."
     }
   },
   "errors": {
@@ -1048,7 +1073,8 @@
     "refreshFingerprint": "刷新指纹",
     "canvasNoiseSeedPlaceholder": "输入用于 canvas 指纹的种子字符串",
     "addFontsPlaceholder": "添加字体...",
-    "enterAsJson": "以 JSON 格式输入 {{title}}"
+    "enterAsJson": "以 JSON 格式输入 {{title}}",
+    "userAgentPlaceholder": "Mozilla/5.0..."
   },
   "warnings": {
     "windowResizeTitle": "自定义窗口尺寸",
@@ -1190,7 +1216,13 @@
     "syncEnableTooltip": "启用同步",
     "syncDisableTooltip": "禁用同步",
     "loadGroupsFailed": "加载扩展组失败",
-    "assignGroupFailed": "分配扩展组失败"
+    "assignGroupFailed": "分配扩展组失败",
+    "management": {
+      "detail": {
+        "backToGroups": "返回分组列表",
+        "editingGroupBreadcrumb": "正在编辑分组"
+      }
+    }
   },
   "pro": {
     "badge": "PRO",
@@ -1215,7 +1247,14 @@
     "domains": "个域名",
     "fresh": "最新",
     "stale": "过期",
-    "notCached": "未缓存"
+    "notCached": "未缓存",
+    "tiers": {
+      "none": "不拦截",
+      "light": "轻度拦截",
+      "standard": "标准拦截",
+      "strict": "严格拦截",
+      "maximum": "最大拦截"
+    }
   },
   "vpns": {
     "form": {
@@ -1465,7 +1504,9 @@
     "acceptButton": "我接受",
     "acceptSuccess": "已成功接受条款",
     "acceptFailed": "接受条款失败",
-    "tryAgain": "请重试"
+    "tryAgain": "请重试",
+    "declineButton": "拒绝",
+    "declined": "已拒绝 Wayfern 条款。Wayfern 功能将被禁用。"
   },
   "commercialTrial": {
     "title": "商业试用期已过期",
@@ -1576,8 +1617,11 @@
     "addTagsPlaceholder": "添加标签",
     "tagsHeader": "标签",
     "noteHeader": "备注",
+    "syncHeader": "同步",
     "vpnsHeading": "VPN",
-    "createByCountryHeading": "按国家创建"
+    "createByCountryHeading": "按国家创建",
+    "tagsUpdateFailed": "更新配置文件标签失败",
+    "countriesLoadFailed": "加载国家列表失败"
   },
   "releaseTypeSelector": {
     "noReleaseTypes": "没有可用的发布类型。",
@@ -1602,7 +1646,9 @@
       "viewRelease": "查看版本",
       "later": "稍后",
       "uploading": "上传中",
-      "downloading": "下载中"
+      "downloading": "下载中",
+      "autoUpdateStarted": "{{browser}} 更新已开始",
+      "autoUpdateDescription": "正在自动下载 {{browser}} {{version}}。进度将显示在下载通知中。"
     }
   },
   "browserDownload": {
@@ -1703,5 +1749,41 @@
     "installSuccess": "代理网关安装成功",
     "installError": "安装代理网关失败",
     "runningCount": "{{count}} 个实例运行中"
+  },
+  "home": {
+    "deprecation": {
+      "title": "浏览器支持即将结束",
+      "description": "以下配置文件的支持将于 {{date}} 移除：{{profiles}}。请迁移到 Wayfern 或 Camoufox 配置文件。",
+      "learnMore": "了解更多"
+    }
+  },
+  "updates": {
+    "notifications": {
+      "updateStarted": "{{browser}} 更新已开始",
+      "updateStartedDescription": "版本 {{version}} 即将开始下载。更新完成前浏览器启动将被禁用。",
+      "alreadyAvailable": "{{browser}} {{version}} 已可用",
+      "updatingProfileConfigs": "正在更新配置文件设置...",
+      "startingDownload": "开始下载 {{browser}} {{version}}",
+      "downloadStartingDescription": "下载进度将显示在下方...",
+      "updateCompleted": "{{browser}} 更新已完成",
+      "singleProfileUpdated": "配置文件「{{name}}」已更新到版本 {{version}}。现在可以使用最新版本启动浏览器。",
+      "multipleProfilesUpdated": "{{count}} 个配置文件已更新到版本 {{version}}。现在可以使用最新版本启动浏览器。",
+      "versionAvailable": "版本 {{version}} 现已可用。运行中的配置文件将在重启后使用新版本。"
+    }
+  },
+  "downloads": {
+    "geoip": {
+      "title": "正在下载 GeoIP 数据库",
+      "completed": "GeoIP 数据库下载成功！"
+    }
+  },
+  "bulkAssign": {
+    "selectedProfilesLabel": "已选配置文件",
+    "moreProfiles": "还有 {{count}} 项...",
+    "createNew": "新建",
+    "newNamePlaceholder": "名称",
+    "selectPlaceholder": "选择一个选项",
+    "mixedSelection": "所选配置文件的当前值不同。请选择一个值应用到所有配置文件。",
+    "applyToAll": "应用到所有选中项"
   }
 }

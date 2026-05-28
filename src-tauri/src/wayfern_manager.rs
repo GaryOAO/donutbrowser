@@ -1,5 +1,6 @@
 use crate::browser_runner::BrowserRunner;
 use crate::profile::BrowserProfile;
+use once_cell::sync::Lazy;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -7,11 +8,48 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
-use std::time::Duration;
+use std::sync::Mutex as StdMutex;
+use std::time::{Duration, Instant};
 use tauri::AppHandle;
 use tokio::process::Command as TokioCommand;
 use tokio::sync::Mutex as AsyncMutex;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
+
+/// Tracks the last time `get_wayfern_token` failed even after a brief wait, so
+/// we can short-circuit subsequent launches while api.donutbrowser.com is
+/// known to be unreachable instead of paying the 3-second penalty every time.
+static WAYFERN_TOKEN_LAST_FAILURE: Lazy<StdMutex<Option<Instant>>> =
+  Lazy::new(|| StdMutex::new(None));
+const WAYFERN_TOKEN_FAILURE_BACKOFF: Duration = Duration::from_secs(60);
+
+/// Best-effort kill of a Chromium child whose CDP never came up. We try
+/// SIGTERM first (graceful, lets it clean up the SingletonLock symlink), wait
+/// a moment, then SIGKILL as a hard fallback. On Windows we use taskkill /F /T
+/// so the whole process tree dies.
+async fn kill_orphaned_browser_child(pid: u32) {
+  #[cfg(unix)]
+  {
+    use nix::sys::signal::{kill, Signal};
+    use nix::unistd::Pid;
+    let nix_pid = Pid::from_raw(pid as i32);
+    let _ = kill(nix_pid, Signal::SIGTERM);
+    // Give Chromium a brief window to clean up its SingletonLock symlink.
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    if crate::proxy_storage::is_process_running(pid) {
+      let _ = kill(nix_pid, Signal::SIGKILL);
+    }
+  }
+  #[cfg(windows)]
+  {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    let _ = std::process::Command::new("taskkill")
+      .args(["/PID", &pid.to_string(), "/T", "/F"])
+      .creation_flags(CREATE_NO_WINDOW)
+      .output();
+  }
+  log::warn!("Killed orphaned browser child PID {pid} after launch failed");
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WayfernConfig {
@@ -503,6 +541,37 @@ impl WayfernManager {
     };
     log::info!("Launching Wayfern on CDP port {port} (detached)");
 
+    // Pre-flight: detect stale or live SingletonLock in user_data_dir.
+    // Chromium uses a symlink "<udd>/SingletonLock -> hostname-pid"; a live PID
+    // means another Chromium owns the profile and the new launch will silently
+    // hang without ever opening CDP. Fail fast with an actionable error;
+    // remove the symlink if the PID is dead so we can proceed.
+    if !headless {
+      let lock = std::path::PathBuf::from(profile_path).join("SingletonLock");
+      if let Ok(target) = std::fs::read_link(&lock) {
+        let target_str = target.to_string_lossy().into_owned();
+        if let Some(pid_str) = target_str.rsplit('-').next() {
+          if let Ok(pid) = pid_str.parse::<u32>() {
+            if crate::proxy_storage::is_process_running(pid) {
+              return Err(
+                format!(
+                  "Profile is already running in another Chromium instance (PID {pid}). \
+                 Stop that instance first, or it may have been launched outside Donut Browser."
+                )
+                .into(),
+              );
+            }
+            log::warn!("Removing stale SingletonLock pointing to dead PID {pid}");
+            let _ = std::fs::remove_file(&lock);
+            let _ =
+              std::fs::remove_file(std::path::PathBuf::from(profile_path).join("SingletonCookie"));
+            let _ =
+              std::fs::remove_file(std::path::PathBuf::from(profile_path).join("SingletonSocket"));
+          }
+        }
+      }
+    }
+
     // Diagnostic: verify critical profile files and test cookie decryption
     {
       let profile_path_buf = std::path::PathBuf::from(profile_path);
@@ -639,25 +708,48 @@ impl WayfernManager {
         .has_active_paid_subscription()
         .await
     {
-      // Brief wait for the background token fetch — when the API is healthy
-      // the token usually lands in well under a second. If api.donutbrowser.com
-      // is unreachable we don't want to gate the whole launch on it; the
-      // browser still works without the token (cross-OS fingerprinting just
-      // won't be enabled for this session, and the next launch will pick it
-      // up once the token arrives).
-      log::info!("Wayfern token not ready for paid user, waiting briefly...");
-      for _ in 0..3 {
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        wayfern_token = crate::cloud_auth::CLOUD_AUTH.get_wayfern_token().await;
-        if wayfern_token.is_some() {
-          break;
+      // Skip the brief wait entirely if a recent token fetch failed — the user
+      // has paid but api.donutbrowser.com is unreachable. Without this, every
+      // launch eats a fixed 3-second penalty during outages.
+      let recent_failure = {
+        let guard = WAYFERN_TOKEN_LAST_FAILURE.lock().unwrap();
+        guard
+          .as_ref()
+          .map(|t| t.elapsed() < WAYFERN_TOKEN_FAILURE_BACKOFF)
+          .unwrap_or(false)
+      };
+      if recent_failure {
+        log::info!(
+          "Wayfern token unavailable and a recent fetch failed within {}s; skipping wait",
+          WAYFERN_TOKEN_FAILURE_BACKOFF.as_secs()
+        );
+      } else {
+        // Brief wait for the background token fetch — when the API is healthy
+        // the token usually lands in well under a second. If api.donutbrowser.com
+        // is unreachable we don't want to gate the whole launch on it; the
+        // browser still works without the token (cross-OS fingerprinting just
+        // won't be enabled for this session, and the next launch will pick it
+        // up once the token arrives).
+        log::info!("Wayfern token not ready for paid user, waiting briefly...");
+        for _ in 0..3 {
+          tokio::time::sleep(Duration::from_secs(1)).await;
+          wayfern_token = crate::cloud_auth::CLOUD_AUTH.get_wayfern_token().await;
+          if wayfern_token.is_some() {
+            break;
+          }
+        }
+        if wayfern_token.is_none() {
+          log::warn!(
+            "Wayfern token still unavailable after wait; launching without it (api.donutbrowser.com may be unreachable)"
+          );
+          *WAYFERN_TOKEN_LAST_FAILURE.lock().unwrap() = Some(Instant::now());
+        } else {
+          *WAYFERN_TOKEN_LAST_FAILURE.lock().unwrap() = None;
         }
       }
-      if wayfern_token.is_none() {
-        log::warn!(
-          "Wayfern token still unavailable after wait; launching without it (api.donutbrowser.com may be unreachable)"
-        );
-      }
+    } else if wayfern_token.is_some() {
+      // Token is present; clear any previous failure marker.
+      *WAYFERN_TOKEN_LAST_FAILURE.lock().unwrap() = None;
     }
     if let Some(ref token) = wayfern_token {
       args.push(format!("--wayfern-token={token}"));
@@ -694,9 +786,25 @@ impl WayfernManager {
     let process_id = child.id();
     drop(child);
 
-    self.wait_for_cdp_ready(port).await?;
+    // If CDP never comes up the child stays alive holding the SingletonLock
+    // and the next launch hits a phantom-pid hang. Kill the orphan before
+    // propagating the error so the next launch is clean.
+    if let Err(e) = self.wait_for_cdp_ready(port).await {
+      if let Some(pid) = process_id {
+        kill_orphaned_browser_child(pid).await;
+      }
+      return Err(e);
+    }
 
-    let targets = self.get_cdp_targets(port).await?;
+    let targets = match self.get_cdp_targets(port).await {
+      Ok(t) => t,
+      Err(e) => {
+        if let Some(pid) = process_id {
+          kill_orphaned_browser_child(pid).await;
+        }
+        return Err(e);
+      }
+    };
     log::info!("Found {} CDP targets", targets.len());
 
     let page_targets: Vec<_> = targets.iter().filter(|t| t.target_type == "page").collect();

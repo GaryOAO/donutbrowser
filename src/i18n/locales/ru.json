@@ -285,7 +285,9 @@
       "profile": "Profile",
       "result": "Result",
       "time": "Time",
-      "runFailed": "Bulk task failed"
+      "runFailed": "Bulk task failed",
+      "cancel": "Cancel",
+      "progress": "{{completed}} of {{total}} complete"
     }
   },
   "createProfile": {
@@ -337,14 +339,33 @@
       "downloading": "Загрузка версии {{browser}} ({{version}})...",
       "latestNeedsDownload": "Последнюю версию ({{version}}) необходимо скачать",
       "latestAvailable": "Последняя версия ({{version}}) доступна",
-      "latestDownloading": "Загрузка версии ({{version}})..."
+      "latestDownloading": "Загрузка версии ({{version}})...",
+      "preparing": "Бинарник браузера (версия {{version}}) будет подготовлен при первом запуске."
     },
     "chromiumLabel": "Chromium",
     "chromiumSubtitle": "На базе Wayfern",
     "firefoxLabel": "Firefox",
     "firefoxSubtitle": "На базе Camoufox",
     "camoufoxWarning": "Firefox (Camoufox) поддерживается сторонней организацией. Для промышленного использования используйте Chromium.",
-    "platformUnavailable": "{{browser}} пока недоступен на вашей платформе."
+    "platformUnavailable": "{{browser}} пока недоступен на вашей платформе.",
+    "browserLabel": "Браузер",
+    "networkSource": {
+      "title": "Сетевой источник",
+      "description": "Исходящий трафик этого профиля. Выберите сохранённый прокси, VPN или узел подписки.",
+      "none": "Нет (прямое подключение)",
+      "storedProxies": "Сохранённые прокси",
+      "vpns": "VPN",
+      "subscriptionHeading": "Подписка: {{name}}",
+      "createNewProxy": "Создать новый прокси...",
+      "search": "Поиск прокси, VPN или узлов...",
+      "notFound": "Подходящий источник не найден."
+    },
+    "advanced": {
+      "show": "Дополнительные параметры",
+      "hide": "Скрыть дополнительные параметры",
+      "fingerprint": "Отпечаток"
+    },
+    "suggestedName": "Профиль {{counter}}"
   },
   "deleteDialog": {
     "title": "Удалить профиль",
@@ -627,7 +648,8 @@
     "toast": {
       "profileSynced": "Профиль '{{name}}' успешно синхронизирован",
       "profileSyncFailed": "Не удалось синхронизировать профиль '{{name}}'",
-      "profileSyncFailedWithError": "Не удалось синхронизировать профиль '{{name}}': {{error}}"
+      "profileSyncFailedWithError": "Не удалось синхронизировать профиль '{{name}}': {{error}}",
+      "syncingProfile": "Синхронизация профиля '{{name}}'..."
     }
   },
   "integrations": {
@@ -873,7 +895,9 @@
       "exportSuccess": "Успешно экспортировано {{count}} элементов",
       "syncSuccess": "Синхронизация успешно завершена",
       "profileSynced": "Профиль '{{name}}' успешно синхронизирован",
-      "cacheCleared": "Кэш успешно очищен"
+      "cacheCleared": "Кэш успешно очищен",
+      "profilesAutoUpgraded": "{{count}} профил(ей) автоматически обновлены до последней версии: {{names}}",
+      "bgBrowserDownloadCompleted": "{{browser}} {{version}} загружен"
     },
     "error": {
       "profileCreateFailed": "Ошибка создания профиля",
@@ -903,7 +927,8 @@
       "syncing": "Синхронизация...",
       "syncingProfile": "Синхронизация профиля '{{name}}'...",
       "syncingProfileWithProgress": "{{count}} файлов ({{size}})",
-      "updatingVersions": "Обновление версий браузеров..."
+      "updatingVersions": "Обновление версий браузеров...",
+      "bgBrowserDownload": "Загрузка {{browser}} {{version}} в фоновом режиме..."
     }
   },
   "errors": {
@@ -1048,7 +1073,8 @@
     "refreshFingerprint": "Обновить отпечаток",
     "canvasNoiseSeedPlaceholder": "Введите строку-семя для отпечатка canvas",
     "addFontsPlaceholder": "Добавить шрифты...",
-    "enterAsJson": "Введите {{title}} в формате JSON"
+    "enterAsJson": "Введите {{title}} в формате JSON",
+    "userAgentPlaceholder": "Mozilla/5.0..."
   },
   "warnings": {
     "windowResizeTitle": "Пользовательские размеры окна",
@@ -1190,7 +1216,13 @@
     "syncEnableTooltip": "Включить синхронизацию",
     "syncDisableTooltip": "Отключить синхронизацию",
     "loadGroupsFailed": "Не удалось загрузить группы расширений",
-    "assignGroupFailed": "Не удалось назначить группу расширений"
+    "assignGroupFailed": "Не удалось назначить группу расширений",
+    "management": {
+      "detail": {
+        "backToGroups": "Назад к группам",
+        "editingGroupBreadcrumb": "Редактирование группы"
+      }
+    }
   },
   "pro": {
     "badge": "PRO",
@@ -1215,7 +1247,14 @@
     "domains": "доменов",
     "fresh": "Актуальный",
     "stale": "Устаревший",
-    "notCached": "Не кэшировано"
+    "notCached": "Не кэшировано",
+    "tiers": {
+      "none": "Без блокировки",
+      "light": "Лёгкая блокировка",
+      "standard": "Стандартная блокировка",
+      "strict": "Строгая блокировка",
+      "maximum": "Максимальная блокировка"
+    }
   },
   "vpns": {
     "form": {
@@ -1465,7 +1504,9 @@
     "acceptButton": "Я принимаю",
     "acceptSuccess": "Условия успешно приняты",
     "acceptFailed": "Не удалось принять условия",
-    "tryAgain": "Пожалуйста, попробуйте снова"
+    "tryAgain": "Пожалуйста, попробуйте снова",
+    "declineButton": "Отклонить",
+    "declined": "Условия Wayfern отклонены. Функции Wayfern будут отключены."
   },
   "commercialTrial": {
     "title": "Срок коммерческой пробной версии истёк",
@@ -1576,8 +1617,11 @@
     "addTagsPlaceholder": "Добавить теги",
     "tagsHeader": "Теги",
     "noteHeader": "Заметка",
+    "syncHeader": "Синхронизация",
     "vpnsHeading": "VPN",
-    "createByCountryHeading": "Создать по стране"
+    "createByCountryHeading": "Создать по стране",
+    "tagsUpdateFailed": "Не удалось обновить теги профиля",
+    "countriesLoadFailed": "Не удалось загрузить список стран"
   },
   "releaseTypeSelector": {
     "noReleaseTypes": "Нет доступных типов выпусков.",
@@ -1602,7 +1646,9 @@
       "viewRelease": "Посмотреть релиз",
       "later": "Позже",
       "uploading": "Загрузка",
-      "downloading": "Скачивание"
+      "downloading": "Скачивание",
+      "autoUpdateStarted": "Начато обновление {{browser}}",
+      "autoUpdateDescription": "Автоматическая загрузка {{browser}} {{version}}. Прогресс будет отображаться в уведомлениях о загрузке."
     }
   },
   "browserDownload": {
@@ -1703,5 +1749,41 @@
     "installSuccess": "Шлюз успешно установлен",
     "installError": "Не удалось установить шлюз",
     "runningCount": "Запущено {{count}} экземпляров"
+  },
+  "home": {
+    "deprecation": {
+      "title": "Поддержка браузера скоро завершится",
+      "description": "Поддержка следующих профилей будет прекращена {{date}}: {{profiles}}. Пожалуйста, перейдите на профили Wayfern или Camoufox.",
+      "learnMore": "Подробнее"
+    }
+  },
+  "updates": {
+    "notifications": {
+      "updateStarted": "Начато обновление {{browser}}",
+      "updateStartedDescription": "Загрузка версии {{version}} скоро начнётся. Запуск браузера отключён до завершения обновления.",
+      "alreadyAvailable": "{{browser}} {{version}} уже доступен",
+      "updatingProfileConfigs": "Обновление конфигураций профилей...",
+      "startingDownload": "Начало загрузки {{browser}} {{version}}",
+      "downloadStartingDescription": "Прогресс загрузки будет показан ниже...",
+      "updateCompleted": "Обновление {{browser}} завершено",
+      "singleProfileUpdated": "Профиль «{{name}}» обновлён до версии {{version}}. Теперь вы можете запускать браузеры с последней версией.",
+      "multipleProfilesUpdated": "{{count}} профилей обновлено до версии {{version}}. Теперь вы можете запускать браузеры с последней версией.",
+      "versionAvailable": "Версия {{version}} теперь доступна. Запущенные профили будут использовать новую версию после перезапуска."
+    }
+  },
+  "downloads": {
+    "geoip": {
+      "title": "Загрузка базы данных GeoIP",
+      "completed": "База данных GeoIP успешно загружена!"
+    }
+  },
+  "bulkAssign": {
+    "selectedProfilesLabel": "Выбранные профили",
+    "moreProfiles": "и ещё {{count}}...",
+    "createNew": "Создать",
+    "newNamePlaceholder": "Название",
+    "selectPlaceholder": "Выберите вариант",
+    "mixedSelection": "У выбранных профилей разные текущие значения. Выберите значение, чтобы применить ко всем.",
+    "applyToAll": "Применить ко всем выбранным"
   }
 }

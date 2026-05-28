@@ -23,10 +23,6 @@ export function GroupBadges({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showLeftFade, setShowLeftFade] = useState(false);
   const [showRightFade, setShowRightFade] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const dragStartRef = useRef<{ x: number; scrollLeft: number } | null>(null);
-  const hasMovedRef = useRef(false);
-  const clickBlockedRef = useRef(false);
 
   const checkScrollPosition = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -37,71 +33,17 @@ export function GroupBadges({
     setShowRightFade(scrollLeft < scrollWidth - clientWidth - 1);
   }, []);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
+  // Convert vertical wheel scrolling into horizontal scrolling when the user's
+  // intent is clearly horizontal-ish — keeps the previous UX of "scroll wheel
+  // moves the badge strip" without the custom drag handler that fought with
+  // click events and accessibility.
+  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    const container = e.currentTarget;
+    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+    if (container.scrollWidth <= container.clientWidth) return;
+    container.scrollLeft += e.deltaY;
     e.preventDefault();
-
-    dragStartRef.current = {
-      x: e.clientX,
-      scrollLeft: container.scrollLeft,
-    };
-    hasMovedRef.current = false;
-    setIsDragging(true);
-    container.style.cursor = "grabbing";
-    container.style.userSelect = "none";
   }, []);
-
-  const handleMouseMove = useCallback(
-    (e: MouseEvent) => {
-      if (!isDragging || !dragStartRef.current) return;
-
-      const container = scrollContainerRef.current;
-      if (!container) return;
-
-      const deltaX = e.clientX - dragStartRef.current.x;
-      const distance = Math.abs(deltaX);
-
-      if (distance > 5) {
-        hasMovedRef.current = true;
-      }
-
-      container.scrollLeft = dragStartRef.current.scrollLeft - deltaX;
-      checkScrollPosition();
-    },
-    [isDragging, checkScrollPosition],
-  );
-
-  const handleMouseUp = useCallback(() => {
-    if (!isDragging) return;
-
-    const container = scrollContainerRef.current;
-    if (container) {
-      container.style.cursor = "";
-      container.style.userSelect = "";
-    }
-
-    clickBlockedRef.current = hasMovedRef.current;
-    setIsDragging(false);
-    dragStartRef.current = null;
-
-    setTimeout(() => {
-      hasMovedRef.current = false;
-      clickBlockedRef.current = false;
-    }, 100);
-  }, [isDragging]);
-
-  useEffect(() => {
-    if (isDragging) {
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
-      return () => {
-        document.removeEventListener("mousemove", handleMouseMove);
-        document.removeEventListener("mouseup", handleMouseUp);
-      };
-    }
-  }, [isDragging, handleMouseMove, handleMouseUp]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -157,30 +99,19 @@ export function GroupBadges({
         ref={scrollContainerRef}
         role="region"
         aria-label={t("groups.profileGroupsAriaLabel")}
-        className={`flex gap-2 overflow-x-auto pb-2 -mb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
+        className="flex gap-2 overflow-x-auto pb-2 -mb-2 scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
         onScroll={checkScrollPosition}
-        onMouseDown={handleMouseDown}
+        onWheel={handleWheel}
       >
         {groups.map((group) => (
           <Badge
             key={group.id}
             variant={selectedGroupId === group.id ? "default" : "secondary"}
             className="flex gap-2 items-center px-3 py-1 transition-colors cursor-pointer dark:hover:bg-primary/60 hover:bg-primary/80 flex-shrink-0"
-            onClick={(e) => {
-              if (hasMovedRef.current || clickBlockedRef.current) {
-                e.preventDefault();
-                e.stopPropagation();
-                return;
-              }
+            onClick={() => {
               onGroupSelect(
                 selectedGroupId === group.id ? "default" : group.id,
               );
-            }}
-            onMouseDown={(e) => {
-              if (isDragging) {
-                e.preventDefault();
-                e.stopPropagation();
-              }
             }}
           >
             <span>

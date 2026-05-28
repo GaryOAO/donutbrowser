@@ -435,63 +435,54 @@ impl SubscriptionPoolManager {
     Ok(imported_ids)
   }
 
-  pub async fn test_node_latency(&self, node_id: &str) -> Result<u64, String> {
-    let node = {
-      let nodes = self.nodes.lock().unwrap();
-      nodes
-        .iter()
-        .find(|n| n.id == node_id)
-        .cloned()
-        .ok_or_else(|| "Node not found".to_string())?
-    };
-
+  /// Measure latency for a single address without writing to disk or emitting events.
+  /// Returns `Ok(latency_ms)` on success, `Err(message)` on failure.
+  async fn measure_node_latency_no_save(addr: &str) -> Result<u64, String> {
     let start = std::time::Instant::now();
-    let addr = format!("{}:{}", node.server, node.port);
-
     let result = tokio::time::timeout(
       std::time::Duration::from_secs(10),
-      tokio::net::TcpStream::connect(&addr),
+      tokio::net::TcpStream::connect(addr),
     )
     .await;
-
     match result {
       Ok(Ok(stream)) => {
         drop(stream);
-        let latency = start.elapsed().as_millis() as u64;
-        {
-          let mut nodes = self.nodes.lock().unwrap();
-          if let Some(n) = nodes.iter_mut().find(|n| n.id == node_id) {
-            n.last_latency_ms = Some(latency);
+        Ok(start.elapsed().as_millis() as u64)
+      }
+      Ok(Err(e)) => Err(format!("TCP connect to {addr} failed: {e}")),
+      Err(_) => Err(format!("Connection to {addr} timed out")),
+    }
+  }
+
+  pub async fn test_node_latency(&self, node_id: &str) -> Result<u64, String> {
+    let (id, addr) = {
+      let nodes = self.nodes.lock().unwrap();
+      let node = nodes
+        .iter()
+        .find(|n| n.id == node_id)
+        .ok_or_else(|| "Node not found".to_string())?;
+      (node.id.clone(), format!("{}:{}", node.server, node.port))
+    };
+
+    let outcome = Self::measure_node_latency_no_save(&addr).await;
+
+    {
+      let mut nodes = self.nodes.lock().unwrap();
+      if let Some(n) = nodes.iter_mut().find(|n| n.id == id) {
+        match &outcome {
+          Ok(latency) => {
+            n.last_latency_ms = Some(*latency);
             n.available = Some(true);
           }
-        }
-        let _ = self.save_to_disk();
-        let _ = events::emit("subscription-pool-changed", ());
-        Ok(latency)
-      }
-      Ok(Err(e)) => {
-        {
-          let mut nodes = self.nodes.lock().unwrap();
-          if let Some(n) = nodes.iter_mut().find(|n| n.id == node_id) {
+          Err(_) => {
             n.available = Some(false);
           }
         }
-        let _ = self.save_to_disk();
-        let _ = events::emit("subscription-pool-changed", ());
-        Err(format!("TCP connect to {addr} failed: {e}"))
-      }
-      Err(_) => {
-        {
-          let mut nodes = self.nodes.lock().unwrap();
-          if let Some(n) = nodes.iter_mut().find(|n| n.id == node_id) {
-            n.available = Some(false);
-          }
-        }
-        let _ = self.save_to_disk();
-        let _ = events::emit("subscription-pool-changed", ());
-        Err(format!("Connection to {addr} timed out"))
       }
     }
+    let _ = self.save_to_disk();
+    let _ = events::emit("subscription-pool-changed", ());
+    outcome
   }
 
   pub async fn test_all_nodes_in_subscription(
@@ -507,22 +498,20 @@ impl SubscriptionPoolManager {
         .collect()
     };
 
+    // Cap concurrent TCP probes so 1000+ nodes don't exhaust ephemeral ports / FDs.
+    const MAX_CONCURRENT_PROBES: usize = 32;
+    let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(MAX_CONCURRENT_PROBES));
+
     let handles: Vec<_> = targets
       .into_iter()
       .map(|(id, addr)| {
+        let permit_sem = semaphore.clone();
         tokio::spawn(async move {
-          let start = std::time::Instant::now();
-          let result = tokio::time::timeout(
-            std::time::Duration::from_secs(10),
-            tokio::net::TcpStream::connect(&addr),
-          )
-          .await;
-          match result {
-            Ok(Ok(stream)) => {
-              drop(stream);
-              (id, true, Some(start.elapsed().as_millis() as u64))
-            }
-            _ => (id, false, None),
+          // Drop the permit when the probe finishes.
+          let _permit = permit_sem.acquire_owned().await.ok();
+          match Self::measure_node_latency_no_save(&addr).await {
+            Ok(latency) => (id, true, Some(latency)),
+            Err(_) => (id, false, None),
           }
         })
       })
@@ -530,6 +519,7 @@ impl SubscriptionPoolManager {
 
     let mut success = 0;
     let mut fail = 0;
+    let mut updates: Vec<(String, bool, Option<u64>)> = Vec::with_capacity(handles.len());
 
     for handle in handles {
       if let Ok((id, available, latency)) = handle.await {
@@ -538,7 +528,14 @@ impl SubscriptionPoolManager {
         } else {
           fail += 1;
         }
-        let mut nodes = self.nodes.lock().unwrap();
+        updates.push((id, available, latency));
+      }
+    }
+
+    // Apply all updates under a single lock then write to disk once.
+    {
+      let mut nodes = self.nodes.lock().unwrap();
+      for (id, available, latency) in updates {
         if let Some(n) = nodes.iter_mut().find(|n| n.id == id) {
           n.available = Some(available);
           if let Some(ms) = latency {

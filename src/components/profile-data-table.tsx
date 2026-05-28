@@ -81,6 +81,7 @@ import {
 } from "@/lib/browser-utils";
 import { formatRelativeTime } from "@/lib/flag-utils";
 import { trimName } from "@/lib/name-utils";
+import { showErrorToast } from "@/lib/toast-utils";
 import { cn } from "@/lib/utils";
 import type {
   BrowserProfile,
@@ -372,9 +373,10 @@ const TagsCell = React.memo<{
           });
         } catch (error) {
           console.error("Failed to update tags:", error);
+          showErrorToast(translate("profileTable.tagsUpdateFailed"));
         }
       },
-      [profile.id, setTagsOverrides, setAllTags],
+      [profile.id, setTagsOverrides, setAllTags, translate],
     );
 
     const handleChange = React.useCallback(
@@ -385,67 +387,8 @@ const TagsCell = React.memo<{
       [onTagsChange],
     );
 
-    const containerRef = React.useRef<HTMLDivElement | null>(null);
     const editorRef = React.useRef<HTMLDivElement | null>(null);
-    const [visibleCount, setVisibleCount] = React.useState<number>(
-      effectiveTags.length,
-    );
     const [isFocused, setIsFocused] = React.useState(false);
-
-    React.useLayoutEffect(() => {
-      // Only measure when not editing this profile's tags
-      if (openTagsEditorFor === profile.id) return;
-      const container = containerRef.current;
-      if (!container) return;
-
-      let timeoutId: number | undefined;
-      const compute = () => {
-        if (timeoutId) clearTimeout(timeoutId);
-        timeoutId = window.setTimeout(() => {
-          const available = container.clientWidth;
-          if (available <= 0) return;
-          const canvas = document.createElement("canvas");
-          const ctx = canvas.getContext("2d");
-          if (!ctx) return;
-          const style = window.getComputedStyle(container);
-          const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-          ctx.font = font;
-          const padding = 16;
-          const gap = 4;
-          let used = 0;
-          let count = 0;
-          for (let i = 0; i < effectiveTags.length; i++) {
-            const text = effectiveTags[i];
-            const width = Math.ceil(ctx.measureText(text).width) + padding;
-            const remaining = effectiveTags.length - (i + 1);
-            let extra = 0;
-            if (remaining > 0) {
-              const plusText = `+${remaining}`;
-              extra = Math.ceil(ctx.measureText(plusText).width) + padding;
-            }
-            const nextUsed =
-              used +
-              (used > 0 ? gap : 0) +
-              width +
-              (remaining > 0 ? gap + extra : 0);
-            if (nextUsed <= available) {
-              used += (used > 0 ? gap : 0) + width;
-              count = i + 1;
-            } else {
-              break;
-            }
-          }
-          setVisibleCount(count);
-        }, 16); // Debounce with RAF timing
-      };
-      compute();
-      const ro = new ResizeObserver(compute);
-      ro.observe(container);
-      return () => {
-        ro.disconnect();
-        if (timeoutId) clearTimeout(timeoutId);
-      };
-    }, [effectiveTags, openTagsEditorFor, profile.id]);
 
     React.useEffect(() => {
       if (openTagsEditorFor !== profile.id) return;
@@ -476,13 +419,15 @@ const TagsCell = React.memo<{
     }, [openTagsEditorFor, profile.id]);
 
     if (openTagsEditorFor !== profile.id) {
-      const hiddenCount = Math.max(0, effectiveTags.length - visibleCount);
+      // Pure-CSS overflow: `flex-wrap + max-h-6 + overflow-hidden` lets the
+      // browser layout engine truncate to the first row naturally. We pair it
+      // with a hover tooltip that always shows the full tag list when there is
+      // any tag — no canvas measurement, no ResizeObserver, no per-row JS.
       const ButtonContent = (
         <button
           type="button"
-          ref={containerRef as unknown as React.RefObject<HTMLButtonElement>}
           className={cn(
-            "flex overflow-hidden gap-1 items-center px-2 py-1 h-6 w-full bg-transparent rounded border-none cursor-pointer",
+            "flex flex-nowrap overflow-hidden gap-1 items-center px-2 py-1 h-6 w-full bg-transparent rounded border-none text-left",
             isDisabled
               ? "opacity-60 cursor-not-allowed"
               : "cursor-pointer hover:bg-accent/50",
@@ -491,20 +436,20 @@ const TagsCell = React.memo<{
             if (!isDisabled) setOpenTagsEditorFor(profile.id);
           }}
         >
-          {effectiveTags.slice(0, visibleCount).map((t) => (
-            <Badge key={t} variant="secondary" className="px-2 py-0 text-xs">
-              {t}
-            </Badge>
-          ))}
-          {effectiveTags.length === 0 && (
+          {effectiveTags.length === 0 ? (
             <span className="text-muted-foreground">
               {translate("profileTable.noTags")}
             </span>
-          )}
-          {hiddenCount > 0 && (
-            <Badge variant="outline" className="px-2 py-0 text-xs">
-              +{hiddenCount}
-            </Badge>
+          ) : (
+            effectiveTags.map((tag) => (
+              <Badge
+                key={tag}
+                variant="secondary"
+                className="px-2 py-0 text-xs shrink-0 max-w-full truncate"
+              >
+                {tag}
+              </Badge>
+            ))
           )}
         </button>
       );
@@ -513,16 +458,16 @@ const TagsCell = React.memo<{
         <div className="w-40 h-6 cursor-pointer">
           <Tooltip>
             <TooltipTrigger asChild>{ButtonContent}</TooltipTrigger>
-            {hiddenCount > 0 && (
+            {effectiveTags.length > 0 && (
               <TooltipContent className="max-w-[320px]">
                 <div className="flex flex-wrap gap-1">
-                  {effectiveTags.map((t) => (
+                  {effectiveTags.map((tag) => (
                     <Badge
-                      key={t}
+                      key={tag}
                       variant="secondary"
                       className="px-2 py-0 text-xs"
                     >
-                      {t}
+                      {tag}
                     </Badge>
                   ))}
                 </div>
@@ -833,6 +778,104 @@ const NoteCell = React.memo<{
 
 NoteCell.displayName = "NoteCell";
 
+// Sorting helpers used by column defs below. They sort on the persisted
+// backend value (the `profile.*` field on the row). Optimistic overrides
+// are short-lived (~milliseconds until the backend round-trips and the
+// `profiles-changed` event refreshes the source of truth), so sorting on
+// overrides would introduce visible row jumps without buying anything.
+
+type ProfileRow = { original: BrowserProfile };
+
+const collator = new Intl.Collator(undefined, {
+  sensitivity: "base",
+  numeric: true,
+});
+
+function sortTagsRow(rowA: ProfileRow, rowB: ProfileRow): number {
+  const a = rowA.original.tags ?? [];
+  const b = rowB.original.tags ?? [];
+  if (a.length !== b.length) return a.length - b.length;
+  // Fall back to alphabetical of the joined tag list so the order is stable
+  // when two profiles have the same tag count.
+  return collator.compare(a.join(","), b.join(","));
+}
+
+function sortNoteRow(rowA: ProfileRow, rowB: ProfileRow): number {
+  const a = rowA.original.note ?? "";
+  const b = rowB.original.note ?? "";
+  if (!a && !b) return 0;
+  if (!a) return 1; // empty notes sink to the bottom of ascending sort
+  if (!b) return -1;
+  return collator.compare(a, b);
+}
+
+function sortProxyRow(rowA: ProfileRow, rowB: ProfileRow): number {
+  // We can't resolve the proxy name without the storedProxies list, so we
+  // sort by the persisted source-id string. Profiles with no proxy sink to
+  // the bottom (consistent with notes / tags behaviour).
+  const aId = rowA.original.proxy_source?.id ?? rowA.original.proxy_id ?? null;
+  const bId = rowB.original.proxy_source?.id ?? rowB.original.proxy_id ?? null;
+  if (!aId && !bId) return 0;
+  if (!aId) return 1;
+  if (!bId) return -1;
+  return collator.compare(aId, bId);
+}
+
+const SYNC_RANK: Record<string, number> = {
+  error: 0,
+  syncing: 1,
+  waiting: 2,
+  synced: 3,
+  disabled: 4,
+};
+function sortSyncRow(rowA: ProfileRow, rowB: ProfileRow): number {
+  const rank = (p: BrowserProfile): number => {
+    const mode = p.sync_mode;
+    if (!mode || mode === "Disabled") return SYNC_RANK.disabled;
+    // We don't have the live status map at sort time, so we approximate via
+    // `last_sync`: a profile with sync enabled and a last_sync timestamp is
+    // "synced"; without one is "waiting". Live "syncing"/"error" states
+    // remain transient and recalc on the next render anyway.
+    if (p.last_sync) return SYNC_RANK.synced;
+    return SYNC_RANK.waiting;
+  };
+  const diff = rank(rowA.original) - rank(rowB.original);
+  if (diff !== 0) return diff;
+  return collator.compare(rowA.original.name, rowB.original.name);
+}
+
+interface SortableHeaderProps {
+  column: {
+    toggleSorting: (desc?: boolean) => void;
+    getIsSorted: () => "asc" | "desc" | false;
+  };
+  label: string;
+  className?: string;
+}
+
+function SortableHeader({ column, label, className }: SortableHeaderProps) {
+  const sorted = column.getIsSorted();
+  return (
+    <Button
+      variant="ghost"
+      onClick={() => {
+        column.toggleSorting(sorted === "asc");
+      }}
+      className={cn(
+        "justify-start p-0 h-auto font-semibold text-left cursor-pointer",
+        className,
+      )}
+    >
+      {label}
+      {sorted === "asc" ? (
+        <LuChevronUp className="ml-2 w-4 h-4" />
+      ) : sorted === "desc" ? (
+        <LuChevronDown className="ml-2 w-4 h-4" />
+      ) : null}
+    </Button>
+  );
+}
+
 interface ProfilesDataTableProps {
   profiles: BrowserProfile[];
   onLaunchProfile: (profile: BrowserProfile) => void | Promise<void>;
@@ -964,7 +1007,6 @@ export function ProfilesDataTable({
   const [newProfileName, setNewProfileName] = React.useState("");
   const [renameError, setRenameError] = React.useState<string | null>(null);
   const [isRenamingSaving, setIsRenamingSaving] = React.useState(false);
-  const renameContainerRef = React.useRef<HTMLDivElement | null>(null);
   const [profileToDelete, setProfileToDelete] =
     React.useState<BrowserProfile | null>(null);
   const [isDeleting, setIsDeleting] = React.useState(false);
@@ -1049,38 +1091,56 @@ export function ProfilesDataTable({
       setCountriesLoaded(true);
     } catch (e) {
       console.error("Failed to load countries:", e);
+      showErrorToast(t("profileTable.countriesLoadFailed"));
     }
-  }, [countriesLoaded]);
+  }, [countriesLoaded, t]);
 
-  // Load cached check results for proxies
+  // Load cached check results for proxies. Two perf wins over the original:
+  //  1. Trigger only when the *set* of unique proxy_ids actually changes
+  //     (profiles reference changes constantly via event reloads, but the
+  //     proxy IDs almost never change). Sorting + joining gives a stable
+  //     dependency string for React's shallow compare.
+  //  2. Fire all per-proxy lookups in parallel via Promise.all instead of an
+  //     awaited for-loop (N round-trips wall-time -> 1).
+  const uniqueProxyIdsKey = React.useMemo(() => {
+    const ids = new Set<string>();
+    for (const profile of profiles) {
+      if (profile.proxy_id) ids.add(profile.proxy_id);
+    }
+    return Array.from(ids).sort().join(",");
+  }, [profiles]);
   React.useEffect(() => {
+    if (!uniqueProxyIdsKey) {
+      return;
+    }
+    const proxyIds = uniqueProxyIdsKey.split(",");
+    let cancelled = false;
     const loadCachedResults = async () => {
-      const results: Record<string, ProxyCheckResult> = {};
-      const proxyIds = new Set<string>();
-      for (const profile of profiles) {
-        if (profile.proxy_id) {
-          proxyIds.add(profile.proxy_id);
-        }
-      }
-      for (const proxyId of proxyIds) {
-        try {
-          const cached = await invoke<ProxyCheckResult | null>(
-            "get_cached_proxy_check",
-            { proxyId },
-          );
-          if (cached) {
-            results[proxyId] = cached;
+      const settled = await Promise.all(
+        proxyIds.map(async (proxyId) => {
+          try {
+            const cached = await invoke<ProxyCheckResult | null>(
+              "get_cached_proxy_check",
+              { proxyId },
+            );
+            return [proxyId, cached] as const;
+          } catch (_error) {
+            return [proxyId, null] as const;
           }
-        } catch (_error) {
-          // Ignore errors
-        }
+        }),
+      );
+      if (cancelled) return;
+      const results: Record<string, ProxyCheckResult> = {};
+      for (const [id, cached] of settled) {
+        if (cached) results[id] = cached;
       }
       setProxyCheckResults(results);
     };
-    if (profiles.length > 0) {
-      void loadCachedResults();
-    }
-  }, [profiles]);
+    void loadCachedResults();
+    return () => {
+      cancelled = true;
+    };
+  }, [uniqueProxyIdsKey]);
 
   const loadAllTags = React.useCallback(async () => {
     try {
@@ -1387,6 +1447,91 @@ export function ProfilesDataTable({
     };
   }, [browserState.isClient, loadAllTags]);
 
+  // Prune the local optimistic-override maps whenever the backend snapshot of
+  // `profiles` changes. Without this they grow unbounded — entries for
+  // deleted profiles linger forever, and entries that already match the
+  // backend value (i.e. the round-trip is complete) waste memory and keep
+  // the table's "effective" reads on a diverging path. We keep the maps
+  // because the upstream hook (`useProfileEvents`) does not expose a setter
+  // for true source-of-truth optimistic updates; pruning is the next-best
+  // bound on memory and re-render cost.
+  React.useEffect(() => {
+    const validIds = new Set(profiles.map((p) => p.id));
+    const profileById = new Map(profiles.map((p) => [p.id, p] as const));
+
+    const sameArray = (a: string[], b: string[]) =>
+      a.length === b.length && a.every((v, i) => v === b[i]);
+    const sameProxySource = (
+      a: ProxySource | null,
+      b: ProxySource | null,
+    ): boolean => {
+      if (a === b) return true;
+      if (!a || !b) return false;
+      return a.type === b.type && a.id === b.id;
+    };
+
+    const pruneStringMap = (
+      prev: Record<string, string | null>,
+      field: (p: BrowserProfile) => string | null | undefined,
+    ): Record<string, string | null> => {
+      let changed = false;
+      const next: Record<string, string | null> = {};
+      for (const [id, value] of Object.entries(prev)) {
+        if (!validIds.has(id)) {
+          changed = true;
+          continue;
+        }
+        const truth = field(profileById.get(id) as BrowserProfile) ?? null;
+        if (truth === value) {
+          changed = true;
+          continue;
+        }
+        next[id] = value;
+      }
+      return changed ? next : prev;
+    };
+
+    setProxyOverrides((prev) => pruneStringMap(prev, (p) => p.proxy_id));
+    setVpnOverrides((prev) => pruneStringMap(prev, (p) => p.vpn_id));
+    setNoteOverrides((prev) => pruneStringMap(prev, (p) => p.note));
+
+    setTagsOverrides((prev) => {
+      let changed = false;
+      const next: Record<string, string[]> = {};
+      for (const [id, value] of Object.entries(prev)) {
+        if (!validIds.has(id)) {
+          changed = true;
+          continue;
+        }
+        const truth = profileById.get(id)?.tags ?? [];
+        if (sameArray(value, truth)) {
+          changed = true;
+          continue;
+        }
+        next[id] = value;
+      }
+      return changed ? next : prev;
+    });
+
+    setProxySourceOverrides((prev) => {
+      let changed = false;
+      const next: Record<string, ProxySource | null> = {};
+      for (const [id, value] of Object.entries(prev)) {
+        if (!validIds.has(id)) {
+          changed = true;
+          continue;
+        }
+        const truth = profileById.get(id)?.proxy_source ?? null;
+        if (sameProxySource(value, truth)) {
+          changed = true;
+          continue;
+        }
+        next[id] = value;
+      }
+      return changed ? next : prev;
+    });
+  }, [profiles]);
+
   // Automatically deselect profiles that become running, updating, launching, or stopping
   React.useEffect(() => {
     const newSet = new Set(selectedProfiles);
@@ -1459,26 +1604,12 @@ export function ProfilesDataTable({
     }
   }, [profileToRename, newProfileName, onRenameProfile, t]);
 
-  // Cancel inline rename on outside click
-  React.useEffect(() => {
-    if (!profileToRename) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (
-        target &&
-        renameContainerRef.current &&
-        !renameContainerRef.current.contains(target)
-      ) {
-        setProfileToRename(null);
-        setNewProfileName("");
-        setRenameError(null);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [profileToRename]);
+  // Inline rename now exits exclusively through the input's onBlur handler.
+  // Outside-click is already a blur for a focused input, so a separate
+  // document mousedown listener would just race with onBlur (it ran first,
+  // tore down the input mid-blur, and ended up triggering both save and
+  // cancel paths). Escape -> cancel and Enter -> blur(=save) live on the
+  // input itself; see the `name` column cell renderer.
 
   const handleDelete = async () => {
     if (!profileToDelete) return;
@@ -2123,20 +2254,10 @@ export function ProfilesDataTable({
         header: ({ column, table }) => {
           const meta = table.options.meta as TableMeta;
           return (
-            <Button
-              variant="ghost"
-              onClick={() => {
-                column.toggleSorting(column.getIsSorted() === "asc");
-              }}
-              className="justify-start p-0 h-auto font-semibold text-left cursor-pointer"
-            >
-              {meta.t("common.labels.name")}
-              {column.getIsSorted() === "asc" ? (
-                <LuChevronUp className="ml-2 w-4 h-4" />
-              ) : column.getIsSorted() === "desc" ? (
-                <LuChevronDown className="ml-2 w-4 h-4" />
-              ) : null}
-            </Button>
+            <SortableHeader
+              column={column}
+              label={meta.t("common.labels.name")}
+            />
           );
         },
         enableSorting: true,
@@ -2150,10 +2271,7 @@ export function ProfilesDataTable({
 
           if (isEditing) {
             return (
-              <div
-                ref={renameContainerRef}
-                className="overflow-visible relative"
-              >
+              <div className="overflow-visible relative">
                 <Input
                   autoFocus
                   value={meta.newProfileName}
@@ -2162,13 +2280,15 @@ export function ProfilesDataTable({
                     if (meta.renameError) meta.setRenameError(null);
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && !(e.metaKey || e.ctrlKey)) {
-                      void meta.handleRename();
-                    } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                      void meta.handleRename();
+                    // Enter just blurs — onBlur is the single save/cancel
+                    // path. Escape cancels without touching the source so a
+                    // stray blur doesn't end up persisting the change.
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      (e.currentTarget as HTMLInputElement).blur();
                     } else if (e.key === "Escape") {
+                      meta.setNewProfileName(profile.name);
                       meta.setProfileToRename(null);
-                      meta.setNewProfileName("");
                       meta.setRenameError(null);
                     }
                   }}
@@ -2260,10 +2380,17 @@ export function ProfilesDataTable({
       {
         id: "tags",
         size: 110,
-        header: ({ table }) => {
+        header: ({ column, table }) => {
           const meta = table.options.meta as TableMeta;
-          return meta.t("profileTable.tagsHeader");
+          return (
+            <SortableHeader
+              column={column}
+              label={meta.t("profileTable.tagsHeader")}
+            />
+          );
         },
+        enableSorting: true,
+        sortingFn: sortTagsRow,
         cell: ({ row, table }) => {
           const meta = table.options.meta as TableMeta;
           const profile = row.original;
@@ -2293,10 +2420,17 @@ export function ProfilesDataTable({
       {
         id: "note",
         size: 110,
-        header: ({ table }) => {
+        header: ({ column, table }) => {
           const meta = table.options.meta as TableMeta;
-          return meta.t("profileTable.noteHeader");
+          return (
+            <SortableHeader
+              column={column}
+              label={meta.t("profileTable.noteHeader")}
+            />
+          );
         },
+        enableSorting: true,
+        sortingFn: sortNoteRow,
         cell: ({ row, table }) => {
           const meta = table.options.meta as TableMeta;
           const profile = row.original;
@@ -2324,10 +2458,17 @@ export function ProfilesDataTable({
       {
         id: "proxy",
         size: 130,
-        header: ({ table }) => {
+        header: ({ column, table }) => {
           const meta = table.options.meta as TableMeta;
-          return meta.t("profiles.table.proxy");
+          return (
+            <SortableHeader
+              column={column}
+              label={meta.t("profiles.table.proxy")}
+            />
+          );
         },
+        enableSorting: true,
+        sortingFn: sortProxyRow,
         cell: ({ row, table }) => {
           const meta = table.options.meta as TableMeta;
           const profile = row.original;
@@ -2773,8 +2914,18 @@ export function ProfilesDataTable({
       },
       {
         id: "sync",
-        header: "",
         size: 24,
+        header: ({ column, table }) => {
+          const meta = table.options.meta as TableMeta;
+          return (
+            <SortableHeader
+              column={column}
+              label={meta.t("profileTable.syncHeader")}
+            />
+          );
+        },
+        enableSorting: true,
+        sortingFn: sortSyncRow,
         cell: ({ row, table }) => {
           const profile = row.original;
           const meta = table.options.meta as TableMeta;

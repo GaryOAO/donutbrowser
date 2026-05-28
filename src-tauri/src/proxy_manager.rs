@@ -4,8 +4,9 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tauri_plugin_shell::ShellExt;
 
 use crate::browser::ProxySettings;
@@ -115,6 +116,32 @@ pub struct ProxyInfo {
   // Optional profile ID to which this proxy instance is logically tied
   pub profile_id: Option<String>,
   pub blocklist_file: Option<String>,
+  // Wall-clock instant the entry was inserted. Used for Pending-token TTL.
+  // Not part of the persisted/serialized shape — recomputed on construction.
+  #[serde(skip, default = "Instant::now")]
+  pub created_at: Instant,
+}
+
+/// Key for the in-memory active proxies map.
+///
+/// During `start_proxy` the real browser PID is not yet known, and multiple
+/// concurrent launches all used to share PID=0 as a placeholder. That caused
+/// the second launch's insert to silently overwrite the first launch's entry,
+/// leaking an orphan worker. Each `start_proxy` invocation now allocates a
+/// unique `Pending(token)` instead, which is promoted to `Browser(pid)` once
+/// the real browser PID is known.
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum ActiveProxyKey {
+  Pending(u64),
+  Browser(u32),
+}
+
+// Monotonic counter for Pending tokens. Lives for the process lifetime; the
+// odds of wrapping a u64 are nil under any realistic workload.
+static NEXT_PENDING_TOKEN: AtomicU64 = AtomicU64::new(1);
+
+fn next_pending_token() -> u64 {
+  NEXT_PENDING_TOKEN.fetch_add(1, Ordering::Relaxed)
 }
 
 // Proxy check result cache
@@ -219,7 +246,9 @@ impl StoredProxy {
 
 // Global proxy manager to track active proxies and stored proxy configurations
 pub struct ProxyManager {
-  active_proxies: Mutex<HashMap<u32, ProxyInfo>>, // Maps browser process ID to proxy info
+  // Tracks every live local proxy worker. Keyed by `ActiveProxyKey` so that
+  // multiple in-flight launches don't collide under a shared sentinel PID.
+  active_proxies: Mutex<HashMap<ActiveProxyKey, ProxyInfo>>,
   // Store proxy info by profile name for persistence across browser restarts
   profile_proxies: Mutex<HashMap<String, ProxySettings>>, // Maps profile name to proxy settings
   // Track active proxy IDs by profile name for targeted cleanup
@@ -619,21 +648,26 @@ impl ProxyManager {
 
   /// Generate a deterministic 11-char alphanumeric session ID from a profile UUID.
   /// This ensures the same profile always gets the same sticky IP session,
-  /// even across credential refreshes.
+  /// even across credential refreshes — including across Rust compiler upgrades.
+  ///
+  /// SHA-256 is used (instead of `DefaultHasher`, whose output is documented as
+  /// "may change between Rust releases") so that a profile keeps the exact same
+  /// upstream session even after the binary is rebuilt with a newer toolchain.
   pub fn generate_sid_for_profile(profile_id: &str) -> String {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
+    use sha2::{Digest, Sha256};
 
-    let mut hasher = DefaultHasher::new();
-    profile_id.hash(&mut hasher);
-    let hash = hasher.finish();
+    let digest = Sha256::digest(profile_id.as_bytes());
 
-    // Convert to base36 (a-z0-9) and take 11 chars
-    let chars: Vec<char> = "abcdefghijklmnopqrstuvwxyz0123456789".chars().collect();
+    // Treat the first 8 bytes of the digest as a big-endian u64 and encode
+    // base-36 (a-z0-9), 11 chars. 36^11 > 2^56, so 8 bytes fit comfortably and
+    // the output stays in the same character set as the previous algorithm.
+    let mut val = u64::from_be_bytes([
+      digest[0], digest[1], digest[2], digest[3], digest[4], digest[5], digest[6], digest[7],
+    ]);
+    const ALPHABET: &[u8; 36] = b"abcdefghijklmnopqrstuvwxyz0123456789";
     let mut sid = String::with_capacity(11);
-    let mut val = hash;
     for _ in 0..11 {
-      sid.push(chars[(val % 36) as usize]);
+      sid.push(ALPHABET[(val % 36) as usize] as char);
       val /= 36;
     }
     sid
@@ -828,13 +862,9 @@ impl ProxyManager {
     list
   }
 
-  pub fn get_stored_proxy(&self, proxy_id: &str) -> Option<StoredProxy> {
-    let stored_proxies = self.stored_proxies.lock().unwrap();
-    stored_proxies.get(proxy_id).cloned()
-  }
-
   pub fn set_profile_proxy_source(
     &self,
+    app_handle: tauri::AppHandle,
     profile_id: &str,
     proxy_source: Option<crate::profile::types::ProxySource>,
   ) -> Result<(), String> {
@@ -855,6 +885,67 @@ impl ProxyManager {
     PROFILE_MANAGER
       .save_profile(&profile)
       .map_err(|e| format!("Failed to save profile: {e}"))?;
+
+    // If the browser is currently running, the local proxy worker is bound to
+    // the old upstream and won't reflect this change until the profile is
+    // restarted. Schedule an async hot-swap so live traffic moves to the new
+    // upstream immediately. We use the global AsyncRuntime because this
+    // method is sync; the work is fire-and-forget — any error is logged.
+    if let Some(pid) = profile.process_id {
+      if crate::proxy_storage::is_process_running(pid) {
+        // Resolve the new upstream synchronously from the saved proxy_source.
+        // Resolving ProxySource → ProxySettings can require I/O for dynamic
+        // sources, so we punt that to the async runtime along with the swap.
+        let profile_id_owned = profile_id.to_string();
+        let profile_for_resolve = profile.clone();
+        let app_handle = app_handle.clone();
+        tauri::async_runtime::spawn(async move {
+          // Re-derive upstream the same way launch does.
+          let upstream = match crate::browser_runner::BrowserRunner::instance()
+            .resolve_launch_proxy(&profile_for_resolve)
+            .await
+          {
+            Ok(u) => u,
+            Err(e) => {
+              log::warn!(
+                "Hot-swap: could not resolve new upstream for profile {profile_id_owned}: {e}"
+              );
+              return;
+            }
+          };
+          let blocklist_file =
+            crate::browser_runner::BrowserRunner::resolve_blocklist_file(&profile_for_resolve)
+              .await
+              .ok()
+              .flatten();
+          match PROXY_MANAGER
+            .restart_local_proxy_for_running_profile(
+              app_handle,
+              &profile_id_owned,
+              upstream.as_ref(),
+              profile_for_resolve.proxy_bypass_rules.clone(),
+              blocklist_file,
+            )
+            .await
+          {
+            Ok(()) => {
+              log::info!(
+                "Hot-swapped proxy worker for running profile {profile_id_owned} via set_profile_proxy_source"
+              );
+              if let Err(e) = events::emit("profile-proxy-hot-swapped", &profile_for_resolve) {
+                log::warn!("Failed to emit profile-proxy-hot-swapped: {e}");
+              }
+            }
+            Err(e) => {
+              log::warn!(
+                "Hot-swap failed for profile {profile_id_owned}: {e}. Restart the profile to apply the change."
+              );
+            }
+          }
+        });
+      }
+    }
+
     Ok(())
   }
 
@@ -894,10 +985,14 @@ impl ProxyManager {
       }
     } // Release the lock here
 
-    // Now get mutable access for updates
+    // Now get mutable access for updates. The lock was briefly released above,
+    // so the proxy may have been deleted by a concurrent caller in the meantime.
     let updated_proxy = {
       let mut stored_proxies = self.stored_proxies.lock().unwrap();
-      let stored_proxy = stored_proxies.get_mut(proxy_id).unwrap(); // Safe because we checked above
+      let stored_proxy = match stored_proxies.get_mut(proxy_id) {
+        Some(p) => p,
+        None => return Err("Proxy disappeared during edit".to_string()),
+      };
 
       if let Some(new_name) = name {
         stored_proxy.update_name(new_name);
@@ -1507,36 +1602,30 @@ impl ProxyManager {
       // 4 parts: could be host:port:user:pass OR user:pass:host:port
       4 => {
         // Try to detect which format
-        let port_at_1 = parts[1].parse::<u16>().is_ok();
-        let port_at_3 = parts[3].parse::<u16>().is_ok();
+        let port_at_1 = parts[1].parse::<u16>().ok();
+        let port_at_3 = parts[3].parse::<u16>().ok();
 
         match (port_at_1, port_at_3) {
           // host:port:user:pass
-          (true, false) => {
-            let port = parts[1].parse::<u16>().unwrap();
-            ProxyParseResult::Parsed(ParsedProxyLine {
-              proxy_type: "http".to_string(),
-              host: parts[0].to_string(),
-              port,
-              username: Some(parts[2].to_string()),
-              password: Some(parts[3].to_string()),
-              original_line: line.to_string(),
-            })
-          }
+          (Some(port), None) => ProxyParseResult::Parsed(ParsedProxyLine {
+            proxy_type: "http".to_string(),
+            host: parts[0].to_string(),
+            port,
+            username: Some(parts[2].to_string()),
+            password: Some(parts[3].to_string()),
+            original_line: line.to_string(),
+          }),
           // user:pass:host:port
-          (false, true) => {
-            let port = parts[3].parse::<u16>().unwrap();
-            ProxyParseResult::Parsed(ParsedProxyLine {
-              proxy_type: "http".to_string(),
-              host: parts[2].to_string(),
-              port,
-              username: Some(parts[0].to_string()),
-              password: Some(parts[1].to_string()),
-              original_line: line.to_string(),
-            })
-          }
+          (None, Some(port)) => ProxyParseResult::Parsed(ParsedProxyLine {
+            proxy_type: "http".to_string(),
+            host: parts[2].to_string(),
+            port,
+            username: Some(parts[0].to_string()),
+            password: Some(parts[1].to_string()),
+            original_line: line.to_string(),
+          }),
           // Both could be ports - ambiguous
-          (true, true) => ProxyParseResult::Ambiguous {
+          (Some(_), Some(_)) => ProxyParseResult::Ambiguous {
             line: line.to_string(),
             possible_formats: vec![
               "host:port:username:password".to_string(),
@@ -1544,7 +1633,7 @@ impl ProxyManager {
             ],
           },
           // Neither is a valid port
-          (false, false) => ProxyParseResult::Invalid {
+          (None, None) => ProxyParseResult::Invalid {
             line: line.to_string(),
             reason: "No valid port number found".to_string(),
           },
@@ -1750,8 +1839,13 @@ impl ProxyManager {
     })
   }
 
-  // Start a proxy for given proxy settings and associate it with a browser process ID
-  // If proxy_settings is None, starts a direct proxy for traffic monitoring
+  // Start a proxy for given proxy settings and associate it with a browser process ID.
+  // If proxy_settings is None, starts a direct proxy for traffic monitoring.
+  //
+  // `browser_pid` may be a sentinel (`0` or `1`) when the real browser PID is
+  // not known yet — callers must call `promote_pending_to_browser` with the
+  // returned [`ActiveProxyKey`] once they have the real PID. For any non-sentinel
+  // PID the entry is stored under `ActiveProxyKey::Browser(pid)` directly.
   pub async fn start_proxy(
     &self,
     app_handle: tauri::AppHandle,
@@ -1760,7 +1854,16 @@ impl ProxyManager {
     profile_id: Option<&str>,
     bypass_rules: Vec<String>,
     blocklist_file: Option<String>,
-  ) -> Result<ProxySettings, String> {
+  ) -> Result<(ProxySettings, ActiveProxyKey), String> {
+    // Decide up-front whether this insertion needs a unique Pending token or
+    // can use the real browser PID. Sentinel PIDs (0 / 1) historically clashed
+    // when two profiles launched concurrently.
+    let target_key = if browser_pid == 0 || browser_pid == 1 {
+      ActiveProxyKey::Pending(next_pending_token())
+    } else {
+      ActiveProxyKey::Browser(browser_pid)
+    };
+
     if let Some(name) = profile_id {
       // Check if we have an active proxy recorded for this profile
       let maybe_existing_id = {
@@ -1787,18 +1890,23 @@ impl ProxyManager {
             && existing.upstream_port == desired_port;
 
           if is_same_upstream {
-            // Settings match - can reuse existing proxy
-            // Just update the PID mapping if needed
-            let proxies = self.active_proxies.lock().unwrap();
-            if proxies.contains_key(&browser_pid) {
-              // Already mapped, reuse it
-              return Ok(ProxySettings {
-                proxy_type: "http".to_string(),
-                host: "127.0.0.1".to_string(),
-                port: existing.local_port,
-                username: None,
-                password: None,
-              });
+            // Settings match - reuse existing proxy. Only a non-sentinel PID
+            // identifies a specific browser, so we only short-circuit when the
+            // caller passed a real PID that already has an entry.
+            if matches!(target_key, ActiveProxyKey::Browser(_)) {
+              let proxies = self.active_proxies.lock().unwrap();
+              if proxies.contains_key(&target_key) {
+                return Ok((
+                  ProxySettings {
+                    proxy_type: "http".to_string(),
+                    host: "127.0.0.1".to_string(),
+                    port: existing.local_port,
+                    username: None,
+                    password: None,
+                  },
+                  target_key,
+                ));
+              }
             }
             // Need to add this PID to the mapping - we'll do that after starting
           }
@@ -1809,9 +1917,9 @@ impl ProxyManager {
     }
     // Check if we already have a proxy for this browser PID
     // If settings match, reuse it; otherwise create a new one (don't stop the old one)
-    {
+    if let ActiveProxyKey::Browser(_) = target_key {
       let proxies = self.active_proxies.lock().unwrap();
-      if let Some(existing) = proxies.get(&browser_pid) {
+      if let Some(existing) = proxies.get(&target_key) {
         let desired_type = proxy_settings
           .map(|p| p.proxy_type.as_str())
           .unwrap_or("DIRECT");
@@ -1832,13 +1940,16 @@ impl ProxyManager {
 
           if profile_id_matches {
             // Reuse existing local proxy (settings and profile_id match)
-            return Ok(ProxySettings {
-              proxy_type: "http".to_string(),
-              host: "127.0.0.1".to_string(),
-              port: existing.local_port,
-              username: None,
-              password: None,
-            });
+            return Ok((
+              ProxySettings {
+                proxy_type: "http".to_string(),
+                host: "127.0.0.1".to_string(),
+                port: existing.local_port,
+                username: None,
+                password: None,
+              },
+              target_key,
+            ));
           }
           // Profile ID changed - we'll create a new proxy but don't stop the old one
           // It will be cleaned up by periodic cleanup if it becomes dead
@@ -1938,6 +2049,7 @@ impl ProxyManager {
       local_port,
       profile_id: profile_id.map(|s| s.to_string()),
       blocklist_file: blocklist_file.clone(),
+      created_at: Instant::now(),
     };
 
     // Wait for the local proxy port to be ready to accept connections
@@ -1964,10 +2076,12 @@ impl ProxyManager {
       }
     }
 
-    // Store the proxy info
+    // Store the proxy info under the allocated key. Pending tokens are unique
+    // per call, so concurrent launches with the same sentinel PID no longer
+    // overwrite each other.
     {
       let mut proxies = self.active_proxies.lock().unwrap();
-      proxies.insert(browser_pid, proxy_info.clone());
+      proxies.insert(target_key.clone(), proxy_info.clone());
     }
 
     // Store the profile proxy info for persistence
@@ -1981,14 +2095,19 @@ impl ProxyManager {
       map.insert(id.to_string(), proxy_info.id.clone());
     }
 
-    // Return proxy settings for the browser
-    Ok(ProxySettings {
-      proxy_type: "http".to_string(),
-      host: "127.0.0.1".to_string(), // Use 127.0.0.1 instead of localhost for better compatibility
-      port: proxy_info.local_port,
-      username: None,
-      password: None,
-    })
+    // Return proxy settings for the browser, plus the key the caller must
+    // pass back via `promote_pending_to_browser` once the real browser PID
+    // is available.
+    Ok((
+      ProxySettings {
+        proxy_type: "http".to_string(),
+        host: "127.0.0.1".to_string(), // Use 127.0.0.1 instead of localhost for better compatibility
+        port: proxy_info.local_port,
+        username: None,
+        password: None,
+      },
+      target_key,
+    ))
   }
 
   // Stop the proxy associated with a browser process ID
@@ -1999,7 +2118,7 @@ impl ProxyManager {
   ) -> Result<(), String> {
     let (proxy_id, profile_id): (String, Option<String>) = {
       let mut proxies = self.active_proxies.lock().unwrap();
-      match proxies.remove(&browser_pid) {
+      match proxies.remove(&ActiveProxyKey::Browser(browser_pid)) {
         Some(proxy) => (proxy.id, proxy.profile_id.clone()),
         None => return Ok(()), // No proxy to stop
       }
@@ -2015,12 +2134,18 @@ impl ProxyManager {
       .arg("--id")
       .arg(&proxy_id);
 
-    let output = proxy_cmd.output().await.unwrap();
-
-    if !output.status.success() {
-      let stderr = String::from_utf8_lossy(&output.stderr);
-      log::warn!("Proxy stop error: {stderr}");
-      // We still return Ok since we've already removed the proxy from our tracking
+    match proxy_cmd.output().await {
+      Ok(output) => {
+        if !output.status.success() {
+          let stderr = String::from_utf8_lossy(&output.stderr);
+          log::warn!("Proxy stop error: {stderr}");
+          // We still return Ok since we've already removed the proxy from our tracking
+        }
+      }
+      Err(e) => {
+        log::warn!("Failed to run donut-proxy stop (id={proxy_id}): {e}");
+        // Continue cleanup anyway; the in-memory entry is already removed.
+      }
     }
 
     // Clear profile-to-proxy mapping if it references this proxy
@@ -2054,15 +2179,15 @@ impl ProxyManager {
     };
 
     if let Some(proxy_id) = proxy_id {
-      // Find the PID for this proxy
+      // Find the browser PID for this proxy. We only care about already-promoted
+      // (Browser) entries here — Pending entries cannot be stopped via the
+      // browser-PID path (they have no browser yet) and will be cleaned up via
+      // the pending-token TTL if their launch never completes.
       let pid = {
         let proxies = self.active_proxies.lock().unwrap();
-        proxies.iter().find_map(|(pid, proxy)| {
-          if proxy.id == proxy_id {
-            Some(*pid)
-          } else {
-            None
-          }
+        proxies.iter().find_map(|(key, proxy)| match key {
+          ActiveProxyKey::Browser(pid) if proxy.id == proxy_id => Some(*pid),
+          _ => None,
         })
       };
 
@@ -2080,11 +2205,17 @@ impl ProxyManager {
           .arg("--id")
           .arg(&proxy_id);
 
-        let output = proxy_cmd.output().await.unwrap();
-
-        if !output.status.success() {
-          let stderr = String::from_utf8_lossy(&output.stderr);
-          log::warn!("Proxy stop error: {stderr}");
+        match proxy_cmd.output().await {
+          Ok(output) => {
+            if !output.status.success() {
+              let stderr = String::from_utf8_lossy(&output.stderr);
+              log::warn!("Proxy stop error: {stderr}");
+            }
+          }
+          Err(e) => {
+            log::warn!("Failed to run donut-proxy stop (id={proxy_id}): {e}");
+            // Continue cleanup so the profile mapping doesn't leak.
+          }
         }
 
         // Clear profile-to-proxy mapping
@@ -2104,15 +2235,171 @@ impl ProxyManager {
     }
   }
 
-  // Update the PID mapping for an existing proxy
+  /// Promote a `Pending` placeholder (allocated by [`start_proxy`]) to a real
+  /// browser PID. Atomic: removes the pending entry and re-inserts under
+  /// `Browser(pid)` while the mutex is held, so a concurrent cleanup pass
+  /// can never observe a half-finished promotion.
+  pub fn promote_pending_to_browser(
+    &self,
+    key: &ActiveProxyKey,
+    browser_pid: u32,
+  ) -> Result<(), String> {
+    let mut proxies = self.active_proxies.lock().unwrap();
+    if let Some(proxy_info) = proxies.remove(key) {
+      proxies.insert(ActiveProxyKey::Browser(browser_pid), proxy_info);
+      Ok(())
+    } else {
+      Err(format!("No proxy found for key {key:?}"))
+    }
+  }
+
+  /// Legacy PID-only remap kept for tests that operate purely in terms of
+  /// browser PIDs. Production callers should use [`promote_pending_to_browser`].
+  #[cfg(test)]
   pub fn update_proxy_pid(&self, old_pid: u32, new_pid: u32) -> Result<(), String> {
     let mut proxies = self.active_proxies.lock().unwrap();
-    if let Some(proxy_info) = proxies.remove(&old_pid) {
-      proxies.insert(new_pid, proxy_info);
+    if let Some(proxy_info) = proxies.remove(&ActiveProxyKey::Browser(old_pid)) {
+      proxies.insert(ActiveProxyKey::Browser(new_pid), proxy_info);
       Ok(())
     } else {
       Err(format!("No proxy found for PID {old_pid}"))
     }
+  }
+
+  /// Look up an active proxy by its associated profile ID. Returns the
+  /// `(browser_pid, ProxyInfo)` tuple for a promoted entry, or `None` if the
+  /// profile has no active proxy or is still in the Pending state.
+  fn find_proxy_by_profile_id(&self, profile_id: &str) -> Option<(u32, ProxyInfo)> {
+    let proxies = self.active_proxies.lock().unwrap();
+    proxies.iter().find_map(|(key, info)| match key {
+      ActiveProxyKey::Browser(pid) if info.profile_id.as_deref() == Some(profile_id) => {
+        Some((*pid, info.clone()))
+      }
+      _ => None,
+    })
+  }
+
+  /// Hot-swap the local proxy worker for a running profile to use a new
+  /// upstream. The browser keeps using the same local 127.0.0.1:PORT so its
+  /// proxy config does not need to change. We stop the old worker, wait for
+  /// the port to free, then spin up a new worker bound to the same port.
+  ///
+  /// Returns `Err` if the profile has no live proxy worker (caller should
+  /// fall back to "restart the profile to apply").
+  pub async fn restart_local_proxy_for_running_profile(
+    &self,
+    app_handle: tauri::AppHandle,
+    profile_id: &str,
+    new_upstream: Option<&ProxySettings>,
+    bypass_rules: Vec<String>,
+    blocklist_file: Option<String>,
+  ) -> Result<(), String> {
+    let (browser_pid, old_info) = match self.find_proxy_by_profile_id(profile_id) {
+      Some(v) => v,
+      None => {
+        return Err(format!(
+          "No live proxy worker tracked for profile '{profile_id}'"
+        ));
+      }
+    };
+
+    let old_local_port = old_info.local_port;
+    let old_proxy_id = old_info.id.clone();
+
+    // Tear down the old worker by browser-PID. This both removes the
+    // active_proxies entry and stops the donut-proxy sidecar process.
+    self.stop_proxy(app_handle.clone(), browser_pid).await?;
+
+    // Wait for the OS to release the port. proxy_runner spawns workers that
+    // bind 127.0.0.1:PORT in their own process; if we don't wait, the new
+    // worker will fail with EADDRINUSE.
+    {
+      use tokio::net::TcpListener;
+      use tokio::time::{sleep, Duration};
+      let mut freed = false;
+      for _ in 0..30 {
+        if TcpListener::bind(("127.0.0.1", old_local_port))
+          .await
+          .is_ok()
+        {
+          freed = true;
+          break;
+        }
+        sleep(Duration::from_millis(100)).await;
+      }
+      if !freed {
+        return Err(format!(
+          "Old proxy port {old_local_port} did not free in time (old proxy id={old_proxy_id})"
+        ));
+      }
+    }
+
+    // Spin up a new worker on the same port via the proxy_runner crate path
+    // (the sidecar `proxy start` CLI does not expose --port, so we go direct).
+    let upstream_url = new_upstream.map(Self::build_proxy_url);
+    let new_config = crate::proxy_runner::start_proxy_process_with_profile(
+      upstream_url,
+      Some(old_local_port),
+      Some(profile_id.to_string()),
+      bypass_rules,
+      blocklist_file.clone(),
+    )
+    .await
+    .map_err(|e| format!("Failed to start replacement proxy worker: {e}"))?;
+
+    let new_local_port = new_config
+      .local_port
+      .ok_or_else(|| "Replacement proxy worker returned without a local port".to_string())?;
+    if new_local_port != old_local_port {
+      // proxy_runner fell back to a different port — this means the browser
+      // is now pointing at the wrong port. Stop the new worker and tell the
+      // caller it has to restart the profile manually.
+      let _ = crate::proxy_runner::stop_proxy_process(&new_config.id).await;
+      return Err(format!(
+        "Replacement proxy could not bind original port {old_local_port} (got {new_local_port})"
+      ));
+    }
+
+    let new_info = ProxyInfo {
+      id: new_config.id.clone(),
+      local_url: new_config
+        .local_url
+        .clone()
+        .unwrap_or_else(|| format!("http://127.0.0.1:{new_local_port}")),
+      upstream_host: new_upstream
+        .map(|p| p.host.clone())
+        .unwrap_or_else(|| "DIRECT".to_string()),
+      upstream_port: new_upstream.map(|p| p.port).unwrap_or(0),
+      upstream_type: new_upstream
+        .map(|p| p.proxy_type.clone())
+        .unwrap_or_else(|| "DIRECT".to_string()),
+      local_port: new_local_port,
+      profile_id: Some(profile_id.to_string()),
+      blocklist_file,
+      created_at: Instant::now(),
+    };
+
+    {
+      let mut proxies = self.active_proxies.lock().unwrap();
+      proxies.insert(ActiveProxyKey::Browser(browser_pid), new_info.clone());
+    }
+    {
+      let mut map = self.profile_active_proxy_ids.lock().unwrap();
+      map.insert(profile_id.to_string(), new_info.id.clone());
+    }
+    if let Some(settings) = new_upstream {
+      let mut profile_proxies = self.profile_proxies.lock().unwrap();
+      profile_proxies.insert(profile_id.to_string(), settings.clone());
+    } else {
+      let mut profile_proxies = self.profile_proxies.lock().unwrap();
+      profile_proxies.remove(profile_id);
+    }
+
+    if let Err(e) = events::emit_empty("proxies-changed") {
+      log::error!("Failed to emit proxies-changed event: {e}");
+    }
+
+    Ok(())
   }
 
   // Clean up proxies for dead browser processes
@@ -2266,10 +2553,55 @@ impl ProxyManager {
       }
     }
 
+    // Reap Pending entries that never got promoted. Each `start_proxy` allocates
+    // a `Pending(token)` placeholder; if the browser launch fails or the caller
+    // forgets to promote, the entry would linger forever. After PENDING_TTL the
+    // worker is assumed orphaned and we tear it down.
+    {
+      const PENDING_TTL_SECS: u64 = 60;
+      let stale_pending: Vec<(ActiveProxyKey, String, Option<String>)> = {
+        let proxies = self.active_proxies.lock().unwrap();
+        proxies
+          .iter()
+          .filter_map(|(key, info)| match key {
+            ActiveProxyKey::Pending(_)
+              if info.created_at.elapsed().as_secs() >= PENDING_TTL_SECS =>
+            {
+              Some((key.clone(), info.id.clone(), info.profile_id.clone()))
+            }
+            _ => None,
+          })
+          .collect()
+      };
+      for (key, proxy_id, profile_id) in stale_pending {
+        log::info!(
+          "Cleanup: pending proxy {key:?} (id={proxy_id}, profile={profile_id:?}) never promoted, reaping"
+        );
+        {
+          let mut proxies = self.active_proxies.lock().unwrap();
+          if let Some(current) = proxies.get(&key) {
+            if current.id != proxy_id {
+              continue;
+            }
+          } else {
+            continue;
+          }
+          proxies.remove(&key);
+        }
+        if let Some(ref pid) = profile_id {
+          let mut map = self.profile_active_proxy_ids.lock().unwrap();
+          if map.get(pid) == Some(&proxy_id) {
+            map.remove(pid);
+          }
+        }
+        let _ = crate::proxy_runner::stop_proxy_process(&proxy_id).await;
+      }
+    }
+
     // Kill proxy workers whose browser process has died.
     //
-    // active_proxies is keyed by the EXACT browser PID that was recorded in
-    // update_proxy_pid(). Checking that PID against a single process-table
+    // active_proxies is keyed by `ActiveProxyKey::Browser(pid)` once the real
+    // browser PID is known. Checking that PID against a single process-table
     // snapshot is deterministic: either the PID refers to a live process or
     // it doesn't. This avoids the fuzzy launcher-vs-browser detection used
     // by check_browser_status (which historically had false negatives on
@@ -2281,13 +2613,17 @@ impl ProxyManager {
     // worker keeps running forever. On Windows users reported dozens of
     // donut-proxy processes accumulating this way.
     {
-      // Snapshot current active entries first so we don't hold the mutex
-      // while running the (expensive on Windows) sysinfo scan.
+      // Snapshot Browser-keyed entries first so we don't hold the mutex
+      // while running the (expensive on Windows) sysinfo scan. Pending
+      // entries are handled by the TTL block above.
       let snapshot: Vec<(u32, String, Option<String>)> = {
         let proxies = self.active_proxies.lock().unwrap();
         proxies
           .iter()
-          .map(|(&browser_pid, info)| (browser_pid, info.id.clone(), info.profile_id.clone()))
+          .filter_map(|(key, info)| match key {
+            ActiveProxyKey::Browser(pid) => Some((*pid, info.id.clone(), info.profile_id.clone())),
+            ActiveProxyKey::Pending(_) => None,
+          })
           .collect()
       };
 
@@ -2308,11 +2644,6 @@ impl ProxyManager {
         let mut snapshot_pids: std::collections::HashSet<u32> = std::collections::HashSet::new();
         for (browser_pid, proxy_id, profile_id) in snapshot {
           snapshot_pids.insert(browser_pid);
-          // The sentinel PID=0 is used as a placeholder during launch,
-          // before update_proxy_pid has recorded the real browser PID.
-          if browser_pid == 0 {
-            continue;
-          }
           if system
             .process(sysinfo::Pid::from_u32(browser_pid))
             .is_some()
@@ -2355,14 +2686,15 @@ impl ProxyManager {
             let mut proxies = self.active_proxies.lock().unwrap();
             // Re-check the entry still maps to the same proxy_id — another
             // thread may have replaced it with a new proxy since we snapshotted.
-            if let Some(current) = proxies.get(&browser_pid) {
+            let key = ActiveProxyKey::Browser(browser_pid);
+            if let Some(current) = proxies.get(&key) {
               if current.id != proxy_id {
                 continue;
               }
             } else {
               continue;
             }
-            proxies.remove(&browser_pid);
+            proxies.remove(&key);
           }
           if let Some(ref pid) = profile_id {
             let mut map = self.profile_active_proxy_ids.lock().unwrap();
@@ -2430,7 +2762,7 @@ impl ProxyManager {
       .active_proxies
       .lock()
       .unwrap()
-      .insert(browser_pid, info);
+      .insert(ActiveProxyKey::Browser(browser_pid), info);
   }
 
   /// Insert a profile-to-proxy mapping directly (for testing).
@@ -2450,58 +2782,9 @@ impl ProxyManager {
       .active_proxies
       .lock()
       .unwrap()
-      .get(&browser_pid)
+      .get(&ActiveProxyKey::Browser(browser_pid))
       .cloned()
   }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ResolvedProxyInfo {
-  pub source_type: String,
-  pub name: String,
-  pub protocol: String,
-  pub server: String,
-  pub port: u16,
-}
-
-pub fn resolve_proxy_info(profile: &crate::profile::BrowserProfile) -> Option<ResolvedProxyInfo> {
-  use crate::profile::types::ProxySource;
-  if let Some(source) = &profile.proxy_source {
-    match source {
-      ProxySource::StoredProxy(id) => {
-        let proxy = PROXY_MANAGER.get_stored_proxy(id)?;
-        return Some(ResolvedProxyInfo {
-          source_type: "stored_proxy".into(),
-          name: proxy.name.clone(),
-          protocol: proxy.proxy_settings.proxy_type.clone(),
-          server: proxy.proxy_settings.host.clone(),
-          port: proxy.proxy_settings.port,
-        });
-      }
-      ProxySource::SubscriptionNode(node_id) => {
-        let node =
-          crate::subscription_pool::SubscriptionPoolManager::instance().get_node(node_id)?;
-        return Some(ResolvedProxyInfo {
-          source_type: "subscription_node".into(),
-          name: node.name.clone(),
-          protocol: format!("{:?}", node.protocol).to_lowercase(),
-          server: node.server.clone(),
-          port: node.port,
-        });
-      }
-    }
-  }
-  if let Some(proxy_id) = &profile.proxy_id {
-    let proxy = PROXY_MANAGER.get_stored_proxy(proxy_id)?;
-    return Some(ResolvedProxyInfo {
-      source_type: "stored_proxy".into(),
-      name: proxy.name.clone(),
-      protocol: proxy.proxy_settings.proxy_type.clone(),
-      server: proxy.proxy_settings.host.clone(),
-      port: proxy.proxy_settings.port,
-    });
-  }
-  None
 }
 
 // Create a singleton instance of the proxy manager
@@ -2644,12 +2927,13 @@ mod tests {
           local_port: (8000 + i) as u16,
           profile_id: None,
           blocklist_file: None,
+          created_at: Instant::now(),
         };
 
         // Add proxy
         {
           let mut active_proxies = pm.active_proxies.lock().unwrap();
-          active_proxies.insert(browser_pid, proxy_info);
+          active_proxies.insert(ActiveProxyKey::Browser(browser_pid), proxy_info);
         }
 
         browser_pid
@@ -2971,6 +3255,7 @@ mod tests {
       local_port: port,
       profile_id: profile_id.map(|s| s.to_string()),
       blocklist_file: None,
+      created_at: Instant::now(),
     }
   }
 
@@ -2999,6 +3284,111 @@ mod tests {
 
     // Unknown PID returns None
     assert!(pm.get_active_proxy(9999).is_none());
+  }
+
+  #[test]
+  fn test_active_proxy_key_distinguishes_pending_and_browser() {
+    let pm = ProxyManager::new();
+
+    // Same numeric value used for pending token and a real browser PID — the
+    // enum variant must keep them separate.
+    let token = next_pending_token();
+    pm.active_proxies.lock().unwrap().insert(
+      ActiveProxyKey::Pending(token),
+      make_proxy_info("px_pending", 9991, Some("p1")),
+    );
+    pm.active_proxies.lock().unwrap().insert(
+      ActiveProxyKey::Browser(token as u32),
+      make_proxy_info("px_browser", 9992, Some("p2")),
+    );
+
+    assert_eq!(pm.active_proxy_count(), 2);
+    let proxies = pm.active_proxies.lock().unwrap();
+    assert_eq!(
+      proxies.get(&ActiveProxyKey::Pending(token)).unwrap().id,
+      "px_pending"
+    );
+    assert_eq!(
+      proxies
+        .get(&ActiveProxyKey::Browser(token as u32))
+        .unwrap()
+        .id,
+      "px_browser"
+    );
+  }
+
+  #[test]
+  fn test_promote_pending_to_browser_atomic_remap() {
+    let pm = ProxyManager::new();
+    let token = next_pending_token();
+    let info = make_proxy_info("px_promote", 9555, Some("prof"));
+    pm.active_proxies
+      .lock()
+      .unwrap()
+      .insert(ActiveProxyKey::Pending(token), info);
+
+    pm.promote_pending_to_browser(&ActiveProxyKey::Pending(token), 42)
+      .expect("promote ok");
+
+    assert!(
+      pm.active_proxies
+        .lock()
+        .unwrap()
+        .get(&ActiveProxyKey::Pending(token))
+        .is_none(),
+      "Pending entry must be gone after promotion"
+    );
+    let info = pm.get_active_proxy(42).expect("entry under Browser key");
+    assert_eq!(info.id, "px_promote");
+    assert_eq!(info.local_port, 9555);
+  }
+
+  #[test]
+  fn test_promote_pending_to_browser_error_for_unknown_key() {
+    let pm = ProxyManager::new();
+    let err = pm
+      .promote_pending_to_browser(&ActiveProxyKey::Pending(99999), 1)
+      .unwrap_err();
+    assert!(err.contains("No proxy found"));
+  }
+
+  /// Regression test for the concurrent-launch orphan-worker bug. Before the
+  /// `ActiveProxyKey` refactor, two simultaneous launches both inserted under
+  /// sentinel PID=0, and the second insert overwrote the first's entry —
+  /// leaving the first worker untracked. With Pending tokens, each insert
+  /// gets a unique key.
+  #[tokio::test]
+  async fn test_concurrent_pending_inserts_do_not_collide() {
+    use std::sync::Arc;
+
+    let pm = Arc::new(ProxyManager::new());
+    let mut handles = vec![];
+
+    for i in 0..20 {
+      let pm = pm.clone();
+      handles.push(tokio::spawn(async move {
+        let token = next_pending_token();
+        let info = make_proxy_info(
+          &format!("px_concurrent_{i}"),
+          8500 + i,
+          Some(&format!("p{i}")),
+        );
+        pm.active_proxies
+          .lock()
+          .unwrap()
+          .insert(ActiveProxyKey::Pending(token), info);
+        token
+      }));
+    }
+    let tokens: Vec<u64> = futures_util::future::join_all(handles)
+      .await
+      .into_iter()
+      .map(|h| h.unwrap())
+      .collect();
+
+    assert_eq!(pm.active_proxy_count(), 20, "no collisions");
+    let unique_tokens: std::collections::HashSet<u64> = tokens.iter().copied().collect();
+    assert_eq!(unique_tokens.len(), 20, "tokens must be unique");
   }
 
   #[test]
@@ -3092,7 +3482,7 @@ mod tests {
       handles.push(tokio::spawn(async move {
         let pid = 2000 + i as u32;
         let mut proxies = pm.active_proxies.lock().unwrap();
-        proxies.remove(&pid);
+        proxies.remove(&ActiveProxyKey::Browser(pid));
       }));
     }
     for h in handles.drain(..) {
@@ -3102,8 +3492,11 @@ mod tests {
 
     // Phase 3: remaining proxies should all have odd indices
     let proxies = pm.active_proxies.lock().unwrap();
-    for (&pid, info) in proxies.iter() {
-      let idx = (pid - 2000) as usize;
+    for (key, info) in proxies.iter() {
+      let ActiveProxyKey::Browser(pid) = key else {
+        panic!("test only inserts Browser-keyed entries");
+      };
+      let idx = (*pid - 2000) as usize;
       assert!(idx % 2 == 1, "Only odd-index proxies should remain");
       assert_eq!(info.id, format!("px_{idx}"));
     }
@@ -3368,6 +3761,7 @@ mod tests {
       local_port: 9201,
       profile_id: Some("profile_alpha".to_string()),
       blocklist_file: None,
+      created_at: Instant::now(),
     };
     let info_b = ProxyInfo {
       id: "px_shared_b".to_string(),
@@ -3378,6 +3772,7 @@ mod tests {
       local_port: 9202,
       profile_id: Some("profile_beta".to_string()),
       blocklist_file: None,
+      created_at: Instant::now(),
     };
 
     pm.insert_active_proxy(3001, info_a);
@@ -3388,7 +3783,7 @@ mod tests {
     // Remove alpha's browser → should NOT affect beta
     {
       let mut proxies = pm.active_proxies.lock().unwrap();
-      proxies.remove(&3001);
+      proxies.remove(&ActiveProxyKey::Browser(3001));
     }
     {
       let mut map = pm.profile_active_proxy_ids.lock().unwrap();
@@ -3480,6 +3875,14 @@ mod tests {
     // Different profiles produce different SIDs
     let sid3 = ProxyManager::generate_sid_for_profile("another-profile");
     assert_ne!(sid1, sid3, "Different profiles must produce different SIDs");
+
+    // Golden value pinned to SHA-256 of "my-profile-uuid". If this assertion
+    // fails, the SID algorithm has changed in a way that will break sticky
+    // sessions on upgrade — investigate before bumping the expected value.
+    assert_eq!(
+      sid1, "qllhiaced78",
+      "SID algorithm changed — will break sticky sessions for existing profiles"
+    );
   }
 
   #[test]
@@ -3871,6 +4274,7 @@ mod tests {
         local_port: 9300 + i as u16,
         profile_id: Some(format!("profile_{ptype}")),
         blocklist_file: None,
+        created_at: Instant::now(),
       };
       pm.insert_active_proxy(4000 + i as u32, info);
     }

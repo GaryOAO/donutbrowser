@@ -28,6 +28,32 @@ interface DnsBlocklistDialogProps {
   onClose: () => void;
 }
 
+// Map the backend's tier identifiers ("none", "light", "normal", "pro",
+// "pro_plus", "ultimate") to translated "what gets blocked" labels so the UI
+// no longer leaks commercial-sounding tier names. The underlying enum values
+// stay the same on the backend.
+function getTierLabel(
+  level: string,
+  t: (key: string) => string,
+  fallback: string,
+): string {
+  switch (level) {
+    case "none":
+      return t("dnsBlocklist.tiers.none");
+    case "light":
+      return t("dnsBlocklist.tiers.light");
+    case "normal":
+      return t("dnsBlocklist.tiers.standard");
+    case "pro":
+    case "pro_plus":
+      return t("dnsBlocklist.tiers.strict");
+    case "ultimate":
+      return t("dnsBlocklist.tiers.maximum");
+    default:
+      return fallback;
+  }
+}
+
 export function DnsBlocklistDialog({
   isOpen,
   onClose,
@@ -96,7 +122,7 @@ export function DnsBlocklistDialog({
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium">
-                    {status.display_name}
+                    {getTierLabel(status.level, t, status.display_name)}
                   </span>
                   {status.is_cached ? (
                     status.is_fresh ? (

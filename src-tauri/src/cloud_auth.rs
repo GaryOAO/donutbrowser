@@ -1226,30 +1226,6 @@ pub async fn cloud_get_countries() -> Result<Vec<LocationItem>, String> {
 }
 
 #[tauri::command]
-pub async fn cloud_get_regions(country: String) -> Result<Vec<LocationItem>, String> {
-  CLOUD_AUTH.fetch_regions(&country).await
-}
-
-#[tauri::command]
-pub async fn cloud_get_cities(
-  country: String,
-  region: Option<String>,
-) -> Result<Vec<LocationItem>, String> {
-  CLOUD_AUTH.fetch_cities(&country, region.as_deref()).await
-}
-
-#[tauri::command]
-pub async fn cloud_get_isps(
-  country: String,
-  region: Option<String>,
-  city: Option<String>,
-) -> Result<Vec<LocationItem>, String> {
-  CLOUD_AUTH
-    .fetch_isps(&country, region.as_deref(), city.as_deref())
-    .await
-}
-
-#[tauri::command]
 pub async fn create_cloud_location_proxy(
   name: String,
   country: String,

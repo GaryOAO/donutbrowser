@@ -881,11 +881,12 @@ impl ExtensionManager {
     match browser_type {
       "firefox" => {
         let extensions_dir = profile_data_path.join("extensions");
-        // Clear existing extensions
-        if extensions_dir.exists() {
-          fs::remove_dir_all(&extensions_dir)?;
-        }
         fs::create_dir_all(&extensions_dir)?;
+
+        // Track which destination files belong to the current group so we can
+        // prune stale ones below (instead of nuking and recopying everything).
+        let mut wanted_dests: std::collections::HashSet<std::path::PathBuf> =
+          std::collections::HashSet::new();
 
         for ext_id in &group.extension_ids {
           if let Ok(ext) = self.get_extension(ext_id) {
@@ -908,18 +909,49 @@ impl ExtensionManager {
                 ext.file_name.clone()
               };
               let dest = extensions_dir.join(&dest_name);
-              fs::copy(&src_file, &dest)?;
+              wanted_dests.insert(dest.clone());
+
+              // Skip the copy when the destination already exists with the
+              // same size and its mtime is newer than (or equal to) the
+              // source's. fs::copy uses "now" for the dest mtime on Unix, so
+              // dest_mtime >= src_mtime is the correct freshness check for a
+              // file we previously wrote. This avoids re-writing tens of MB
+              // of .xpi blobs per launch and keeps profile sync diffs stable.
+              let needs_copy = match (fs::metadata(&src_file), fs::metadata(&dest)) {
+                (Ok(src_meta), Ok(dst_meta)) => {
+                  src_meta.len() != dst_meta.len()
+                    || match (src_meta.modified(), dst_meta.modified()) {
+                      (Ok(src_m), Ok(dst_m)) => dst_m < src_m,
+                      _ => true,
+                    }
+                }
+                _ => true,
+              };
+
+              if needs_copy {
+                fs::copy(&src_file, &dest)?;
+              }
               extension_paths.push(dest.to_string_lossy().to_string());
+            }
+          }
+        }
+
+        // Prune any stale .xpi files that are no longer in the group.
+        if let Ok(entries) = fs::read_dir(&extensions_dir) {
+          for entry in entries.flatten() {
+            let path = entry.path();
+            if !wanted_dests.contains(&path) {
+              let _ = fs::remove_file(&path);
             }
           }
         }
       }
       "chromium" => {
-        // For Chromium, unpack extensions and return paths for --load-extension
+        // For Chromium, unpack extensions and return paths for --load-extension.
+        // The unpack base lives outside the profile, so we only need to keep
+        // the per-extension directories fresh — no need to nuke the whole base
+        // (which previously re-unpacked every extension every launch).
         let unpacked_base = extensions_base_dir().join("unpacked");
-        if unpacked_base.exists() {
-          fs::remove_dir_all(&unpacked_base)?;
-        }
         fs::create_dir_all(&unpacked_base)?;
 
         for ext_id in &group.extension_ids {
@@ -930,16 +962,36 @@ impl ExtensionManager {
             let src_file = self.get_file_dir(ext_id).join(&ext.file_name);
             if src_file.exists() {
               let unpack_dir = unpacked_base.join(ext_id);
-              fs::create_dir_all(&unpack_dir)?;
+              let marker = unpack_dir.join(".unpacked-mtime");
 
-              // Extract .crx or .zip
-              match Self::unpack_extension(&src_file, &unpack_dir) {
-                Ok(()) => {
-                  extension_paths.push(unpack_dir.to_string_lossy().to_string());
+              // Skip re-unpacking when the marker mtime is >= source mtime and
+              // a manifest.json (a sentinel for a successful prior unpack) is
+              // present.
+              let needs_unpack = match (
+                fs::metadata(&src_file).and_then(|m| m.modified()),
+                fs::metadata(&marker).and_then(|m| m.modified()),
+                unpack_dir.join("manifest.json").exists(),
+              ) {
+                (Ok(src_m), Ok(marker_m), true) => marker_m < src_m,
+                _ => true,
+              };
+
+              if needs_unpack {
+                if unpack_dir.exists() {
+                  fs::remove_dir_all(&unpack_dir)?;
                 }
-                Err(e) => {
-                  log::warn!("Failed to unpack extension '{}': {}", ext.name, e);
+                fs::create_dir_all(&unpack_dir)?;
+                match Self::unpack_extension(&src_file, &unpack_dir) {
+                  Ok(()) => {
+                    let _ = fs::write(&marker, b"");
+                    extension_paths.push(unpack_dir.to_string_lossy().to_string());
+                  }
+                  Err(e) => {
+                    log::warn!("Failed to unpack extension '{}': {}", ext.name, e);
+                  }
                 }
+              } else {
+                extension_paths.push(unpack_dir.to_string_lossy().to_string());
               }
             }
           }

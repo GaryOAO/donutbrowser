@@ -93,12 +93,35 @@ impl BlocklistMatcher {
     if self.domains.is_empty() {
       return false;
     }
+
+    // Fast path for hosts that are already ASCII lowercase (the overwhelming
+    // common case for CONNECT/HTTP targets). Avoid the String allocation that
+    // `host.to_lowercase()` would force on every request.
+    let host_bytes = host.as_bytes();
+    let is_ascii_lower = host_bytes
+      .iter()
+      .all(|b| !b.is_ascii_uppercase() && b.is_ascii());
+
+    if is_ascii_lower {
+      if self.domains.contains(host) {
+        return true;
+      }
+      let mut start = 0;
+      while let Some(dot_pos) = host[start..].find('.') {
+        start += dot_pos + 1;
+        if self.domains.contains(&host[start..]) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // Slow path: at least one uppercase or non-ASCII char. Allocate once and
+    // reuse for both the exact and suffix matches.
     let host_lower = host.to_lowercase();
-    // Exact match
     if self.domains.contains(host_lower.as_str()) {
       return true;
     }
-    // Suffix matching: check parent domains (like uBlock)
     let mut start = 0;
     while let Some(dot_pos) = host_lower[start..].find('.') {
       start += dot_pos + 1;
@@ -1182,7 +1205,7 @@ pub async fn handle_proxy_connection(
 }
 
 pub async fn run_proxy_server(config: ProxyConfig) -> Result<(), Box<dyn std::error::Error>> {
-  log::error!(
+  log::info!(
     "Proxy worker starting, looking for config id: {}",
     config.id
   );
@@ -1196,7 +1219,7 @@ pub async fn run_proxy_server(config: ProxyConfig) -> Result<(), Box<dyn std::er
     }
   };
 
-  log::error!(
+  log::info!(
     "Found config: id={}, port={:?}, upstream={}, profile_id={:?}",
     config.id,
     config.local_port,
@@ -1204,12 +1227,12 @@ pub async fn run_proxy_server(config: ProxyConfig) -> Result<(), Box<dyn std::er
     config.profile_id
   );
 
-  log::error!("Starting proxy server for config id: {}", config.id);
+  log::info!("Starting proxy server for config id: {}", config.id);
 
   // Initialize traffic tracker with profile ID if available
   // This can now be called multiple times to update the tracker
   init_traffic_tracker(config.id.clone(), config.profile_id.clone());
-  log::error!(
+  log::info!(
     "Traffic tracker initialized for proxy: {} (profile_id: {:?})",
     config.id,
     config.profile_id
@@ -1217,7 +1240,7 @@ pub async fn run_proxy_server(config: ProxyConfig) -> Result<(), Box<dyn std::er
 
   // Verify tracker was initialized correctly
   if let Some(tracker) = crate::traffic_stats::get_traffic_tracker() {
-    log::error!(
+    log::info!(
       "Tracker verified: proxy_id={}, profile_id={:?}",
       tracker.proxy_id,
       tracker.profile_id
@@ -1229,7 +1252,7 @@ pub async fn run_proxy_server(config: ProxyConfig) -> Result<(), Box<dyn std::er
   // Determine the bind address
   let bind_addr = SocketAddr::from(([127, 0, 0, 1], config.local_port.unwrap_or(0)));
 
-  log::error!("Attempting to bind proxy server to {}", bind_addr);
+  log::info!("Attempting to bind proxy server to {}", bind_addr);
 
   // Bind to the port. Use SO_REUSEADDR so that a freshly-restarted worker
   // can bind a port that the previous worker left in TIME_WAIT, and retry
@@ -1276,7 +1299,7 @@ pub async fn run_proxy_server(config: ProxyConfig) -> Result<(), Box<dyn std::er
   };
   let actual_port = listener.local_addr()?.port();
 
-  log::error!("Successfully bound to port {}", actual_port);
+  log::info!("Successfully bound to port {}", actual_port);
 
   // Update config with actual port and local_url
   let mut updated_config = config.clone();
@@ -1284,7 +1307,7 @@ pub async fn run_proxy_server(config: ProxyConfig) -> Result<(), Box<dyn std::er
   updated_config.local_url = Some(format!("http://127.0.0.1:{}", actual_port));
 
   // Save the updated config
-  log::error!(
+  log::info!(
     "Saving updated config with local_url={:?}",
     updated_config.local_url
   );
@@ -1299,12 +1322,12 @@ pub async fn run_proxy_server(config: ProxyConfig) -> Result<(), Box<dyn std::er
     Some(updated_config.upstream_url.clone())
   };
 
-  log::error!("Proxy server bound to 127.0.0.1:{}", actual_port);
-  log::error!(
+  log::info!("Proxy server bound to 127.0.0.1:{}", actual_port);
+  log::info!(
     "Proxy server listening on 127.0.0.1:{} (ready to accept connections)",
     actual_port
   );
-  log::error!("Proxy server entering accept loop - process should stay alive");
+  log::info!("Proxy server entering accept loop - process should stay alive");
 
   // Start a background task to write lightweight session snapshots for real-time updates
   // These are much smaller than full stats and can be written frequently (~100 bytes every 2 seconds)

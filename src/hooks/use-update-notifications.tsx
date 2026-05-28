@@ -62,8 +62,15 @@ export function useUpdateNotifications(
         showToast({
           id: `auto-update-started-${browser}-${newVersion}`,
           type: "loading",
-          title: `${browserDisplayName} update started`,
-          description: `Version ${newVersion} download will begin shortly. Browser launch is disabled until update completes.`,
+          title: i18n.t("updates.notifications.updateStarted", {
+            browser: browserDisplayName,
+          }),
+          description: i18n.t(
+            "updates.notifications.updateStartedDescription",
+            {
+              version: newVersion,
+            },
+          ),
           duration: 4000,
         });
 
@@ -83,8 +90,13 @@ export function useUpdateNotifications(
             showToast({
               id: `auto-update-skip-download-${browser}-${newVersion}`,
               type: "success",
-              title: `${browserDisplayName} ${newVersion} already available`,
-              description: "Updating profile configurations...",
+              title: i18n.t("updates.notifications.alreadyAvailable", {
+                browser: browserDisplayName,
+                version: newVersion,
+              }),
+              description: i18n.t(
+                "updates.notifications.updatingProfileConfigs",
+              ),
               duration: 3000,
             });
           } else {
@@ -92,8 +104,13 @@ export function useUpdateNotifications(
             showToast({
               id: `auto-update-download-starting-${browser}-${newVersion}`,
               type: "loading",
-              title: `Starting ${browserDisplayName} ${newVersion} download`,
-              description: "Download progress will be shown below...",
+              title: i18n.t("updates.notifications.startingDownload", {
+                browser: browserDisplayName,
+                version: newVersion,
+              }),
+              description: i18n.t(
+                "updates.notifications.downloadStartingDescription",
+              ),
               duration: 4000,
             });
 
@@ -115,24 +132,36 @@ export function useUpdateNotifications(
 
           // Show success message based on whether profiles were updated
           if (updatedProfiles.length > 0) {
-            const profileText =
+            const description =
               updatedProfiles.length === 1
-                ? `Profile "${updatedProfiles[0]}" has been updated`
-                : `${updatedProfiles.length} profiles have been updated`;
+                ? i18n.t("updates.notifications.singleProfileUpdated", {
+                    name: updatedProfiles[0],
+                    version: newVersion,
+                  })
+                : i18n.t("updates.notifications.multipleProfilesUpdated", {
+                    count: updatedProfiles.length,
+                    version: newVersion,
+                  });
 
             showToast({
               id: `auto-update-success-${browser}-${newVersion}`,
               type: "success",
-              title: `${browserDisplayName} update completed`,
-              description: `${profileText} to version ${newVersion}. You can now launch your browsers with the latest version.`,
+              title: i18n.t("updates.notifications.updateCompleted", {
+                browser: browserDisplayName,
+              }),
+              description,
               duration: 6000,
             });
           } else {
             showToast({
               id: `auto-update-success-${browser}-${newVersion}`,
               type: "success",
-              title: `${browserDisplayName} update completed`,
-              description: `Version ${newVersion} is now available. Running profiles will use the new version when restarted.`,
+              title: i18n.t("updates.notifications.updateCompleted", {
+                browser: browserDisplayName,
+              }),
+              description: i18n.t("updates.notifications.versionAvailable", {
+                version: newVersion,
+              }),
               duration: 6000,
             });
           }

@@ -17,7 +17,10 @@ pub use engine::{
   set_extension_sync_enabled, set_group_sync_enabled, set_profile_sync_mode,
   set_proxy_sync_enabled, set_vpn_sync_enabled, sync_profile, trigger_sync_for_profile, SyncEngine,
 };
-pub use manifest::{compute_diff, generate_manifest, HashCache, ManifestDiff, SyncManifest};
+pub use manifest::{
+  compute_diff, generate_manifest, ConflictedFile, HashCache, ManifestDiff, SyncManifest,
+  TombstoneEntry,
+};
 pub use scheduler::{get_global_scheduler, set_global_scheduler, SyncScheduler};
 pub use subscription::{SubscriptionManager, SyncWorkItem};
 pub use types::{SyncError, SyncResult};

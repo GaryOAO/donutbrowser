@@ -13,6 +13,7 @@ mod api_client;
 mod api_server;
 mod app_auto_updater;
 pub mod app_dirs;
+mod atomic_write;
 mod auto_updater;
 mod browser;
 mod browser_runner;
@@ -67,8 +68,8 @@ pub mod vpn_worker_runner;
 pub mod vpn_worker_storage;
 
 use browser_runner::{
-  check_browser_exists, kill_browser_profile, launch_browser_profile, open_url_with_profile,
-  run_bulk_browser_tasks,
+  cancel_bulk_browser_task, check_browser_exists, kill_browser_profile, launch_browser_profile,
+  open_url_with_profile, run_bulk_browser_tasks,
 };
 
 use profile::manager::{
@@ -193,27 +194,11 @@ impl<R: Runtime> WindowExt for WebviewWindow<R> {
 
 #[tauri::command]
 async fn set_profile_proxy_source(
+  app_handle: tauri::AppHandle,
   profile_id: String,
   proxy_source: Option<profile::types::ProxySource>,
 ) -> Result<(), String> {
-  proxy_manager::PROXY_MANAGER.set_profile_proxy_source(&profile_id, proxy_source)
-}
-
-#[tauri::command]
-async fn resolve_profile_proxy_info(
-  profile_id: String,
-) -> Result<Option<proxy_manager::ResolvedProxyInfo>, String> {
-  use crate::profile::manager::PROFILE_MANAGER;
-  let profiles = PROFILE_MANAGER
-    .list_profiles()
-    .map_err(|e| format!("Failed to list profiles: {e}"))?;
-  let profile_uuid =
-    uuid::Uuid::parse_str(&profile_id).map_err(|_| format!("Invalid profile ID: {profile_id}"))?;
-  let profile = profiles
-    .into_iter()
-    .find(|p| p.id == profile_uuid)
-    .ok_or_else(|| format!("Profile '{profile_id}' not found"))?;
-  Ok(proxy_manager::resolve_proxy_info(&profile))
+  proxy_manager::PROXY_MANAGER.set_profile_proxy_source(app_handle, &profile_id, proxy_source)
 }
 
 #[tauri::command]
@@ -224,7 +209,6 @@ async fn batch_delete_stored_proxies(
   proxy_manager::PROXY_MANAGER.batch_delete_stored_proxies(proxy_ids, &app_handle)
 }
 
-#[tauri::command]
 async fn handle_url_open(app: tauri::AppHandle, url: String) -> Result<(), String> {
   log::info!("handle_url_open called with URL: {url}");
 
@@ -521,13 +505,6 @@ async fn get_commercial_trial_status(
 ) -> Result<commercial_license::TrialStatus, String> {
   commercial_license::CommercialLicenseManager::instance()
     .get_trial_status(&app_handle)
-    .await
-}
-
-#[tauri::command]
-async fn acknowledge_trial_expiration(app_handle: tauri::AppHandle) -> Result<(), String> {
-  commercial_license::CommercialLicenseManager::instance()
-    .acknowledge_expiration(&app_handle)
     .await
 }
 
@@ -1782,6 +1759,11 @@ pub fn run() {
                 updated.len(),
                 updated
               );
+              // Surface the silent bump so the user knows what changed —
+              // otherwise profiles pinned to older versions can drift forward
+              // with no UI breadcrumb.
+              use tauri::Emitter;
+              let _ = app_handle_bump.emit("profiles-auto-upgraded", updated.clone());
             }
           }
           Err(e) => {
@@ -2246,6 +2228,7 @@ pub fn run() {
       check_browser_status,
       kill_browser_profile,
       run_bulk_browser_tasks,
+      cancel_bulk_browser_task,
       rename_profile,
       get_app_settings,
       save_app_settings,
@@ -2349,7 +2332,6 @@ pub fn run() {
       check_wayfern_downloaded,
       accept_wayfern_terms,
       get_commercial_trial_status,
-      acknowledge_trial_expiration,
       has_acknowledged_trial_expiration,
       start_mcp_server,
       stop_mcp_server,
@@ -2373,7 +2355,6 @@ pub fn run() {
       disconnect_vpn,
       get_vpn_status,
       list_active_vpn_connections,
-      handle_url_open,
       // Cloud auth commands
       cloud_auth::cloud_exchange_device_code,
       cloud_auth::cloud_get_user,
@@ -2381,9 +2362,6 @@ pub fn run() {
       cloud_auth::cloud_logout,
       cloud_auth::cloud_get_proxy_usage,
       cloud_auth::cloud_get_countries,
-      cloud_auth::cloud_get_regions,
-      cloud_auth::cloud_get_cities,
-      cloud_auth::cloud_get_isps,
       cloud_auth::create_cloud_location_proxy,
       cloud_auth::restart_sync_service,
       cloud_auth::cloud_get_wayfern_token,
@@ -2423,7 +2401,6 @@ pub fn run() {
       test_all_pool_nodes,
       // Proxy source commands
       set_profile_proxy_source,
-      resolve_profile_proxy_info,
       // Gateway (mihomo) commands
       get_gateway_status,
       install_gateway,
@@ -2503,9 +2480,6 @@ mod tests {
       "import_all_supported_pool_nodes",
       "test_pool_node_latency",
       "test_all_pool_nodes",
-      "set_profile_proxy_source",
-      "resolve_profile_proxy_info",
-      "batch_delete_stored_proxies",
       // Gateway commands
       "get_gateway_status",
       "install_gateway",

@@ -1,6 +1,9 @@
 use super::client::SyncClient;
 use super::encryption;
-use super::manifest::{compute_diff, generate_manifest, get_cache_path, HashCache, SyncManifest};
+use super::manifest::{
+  compute_diff, generate_manifest, get_cache_path, ConflictedFile, HashCache, SyncManifest,
+  TombstoneEntry,
+};
 use super::types::*;
 use crate::events;
 use crate::profile::types::{BrowserProfile, SyncMode};
@@ -47,6 +50,73 @@ fn is_critical_file(path: &str) -> bool {
   CRITICAL_FILE_PATTERNS
     .iter()
     .any(|pattern| path.contains(pattern))
+}
+
+/// Load (or lazily create) a stable per-install device ID. Stored as a plain
+/// UUID file under the app settings dir. Used to name conflict files.
+fn get_or_create_device_id() -> String {
+  let dir = crate::app_dirs::settings_dir();
+  let path = dir.join("sync-device-id");
+  if let Ok(existing) = fs::read_to_string(&path) {
+    let trimmed = existing.trim();
+    if !trimmed.is_empty() {
+      return trimmed.to_string();
+    }
+  }
+  let id = uuid::Uuid::new_v4().to_string();
+  let _ = fs::create_dir_all(&dir);
+  let _ = fs::write(&path, &id);
+  id
+}
+
+/// Now as wall-clock milliseconds since epoch.
+fn now_unix_ms() -> i64 {
+  std::time::SystemTime::now()
+    .duration_since(std::time::UNIX_EPOCH)
+    .map(|d| d.as_millis() as i64)
+    .unwrap_or(0)
+}
+
+/// Is the local OS process with the given pid still alive? Returns `true` for
+/// "unknown/error" so that we err on the side of NOT syncing a possibly-running
+/// profile (matches old behavior). The caller treats `false` as "safe to sync".
+fn is_pid_alive(pid: u32) -> bool {
+  crate::proxy_storage::is_process_running(pid)
+}
+
+/// Local sidecar that survives across sync runs so we remember user-initiated
+/// deletes that aren't captured by walking the filesystem. Stored as JSON at
+/// `<profile_dir>/.donut-sync/tombstones.json`.
+fn local_tombstones_path(profile_dir: &Path) -> PathBuf {
+  profile_dir.join(".donut-sync").join("tombstones.json")
+}
+
+fn load_local_tombstones(profile_dir: &Path) -> SyncResult<Vec<TombstoneEntry>> {
+  let path = local_tombstones_path(profile_dir);
+  if !path.exists() {
+    return Ok(Vec::new());
+  }
+  let content = fs::read_to_string(&path).map_err(|e| {
+    SyncError::IoError(format!(
+      "Failed to read tombstone sidecar {}: {e}",
+      path.display()
+    ))
+  })?;
+  serde_json::from_str(&content)
+    .map_err(|e| SyncError::SerializationError(format!("Bad tombstone sidecar JSON: {e}")))
+}
+
+fn save_local_tombstones(profile_dir: &Path, entries: &[TombstoneEntry]) -> SyncResult<()> {
+  let path = local_tombstones_path(profile_dir);
+  if let Some(parent) = path.parent() {
+    fs::create_dir_all(parent)
+      .map_err(|e| SyncError::IoError(format!("Failed to mkdir for tombstone sidecar: {e}")))?;
+  }
+  let json = serde_json::to_string_pretty(entries)
+    .map_err(|e| SyncError::SerializationError(format!("Failed to serialize tombstones: {e}")))?;
+  fs::write(&path, json)
+    .map_err(|e| SyncError::IoError(format!("Failed to write tombstone sidecar: {e}")))?;
+  Ok(())
 }
 
 /// Checkpoint all SQLite WAL files in a profile directory.
@@ -345,15 +415,31 @@ impl SyncEngine {
       return Ok(());
     }
 
-    // Skip if profile is currently running locally
-    if profile.process_id.is_some() {
-      log::info!(
-        "Skipping sync for running profile: {} ({})",
-        profile.name,
-        profile.id
-      );
-      return Ok(());
+    // Skip if profile is currently running locally — but only if the recorded
+    // process is actually alive. A stale `process_id` left over from a crash
+    // or unclean shutdown must NOT block sync indefinitely; clear it instead.
+    let mut profile_owned = profile.clone();
+    if let Some(pid) = profile_owned.process_id {
+      if is_pid_alive(pid) {
+        log::info!(
+          "Skipping sync for running profile: {} ({}) pid={}",
+          profile_owned.name,
+          profile_owned.id,
+          pid
+        );
+        return Ok(());
+      } else {
+        log::info!(
+          "Profile {} ({}) had stale process_id={} (process not alive); clearing and proceeding with sync",
+          profile_owned.name,
+          profile_owned.id,
+          pid
+        );
+        profile_owned.process_id = None;
+        let _ = ProfileManager::instance().save_profile(&profile_owned);
+      }
     }
+    let profile = &profile_owned;
 
     // Skip if profile is locked by another team member
     if crate::team_lock::TEAM_LOCK
@@ -456,12 +542,31 @@ impl SyncEngine {
 
     // Try to download remote manifest
     let remote_manifest_key = format!("{}profiles/{}/manifest.json", key_prefix, profile_id);
-    let remote_manifest = self
+    let mut remote_manifest = self
       .download_manifest(&remote_manifest_key, encryption_key.as_ref())
       .await?;
+    // Migrate v1 remote manifests in-memory so the diff sees v2 invariants.
+    if let Some(rm) = remote_manifest.as_mut() {
+      rm.migrate_to_v2();
+    }
 
-    // Compute diff
-    let diff = compute_diff(&local_manifest, remote_manifest.as_ref());
+    // Stamp the local manifest's last_sync from the local profile so the diff
+    // can detect concurrent edits relative to our last successful sync. If we
+    // have no record yet (first sync on this device), `last_sync_ms` stays
+    // None and the diff falls back to per-file newer-mtime-wins for that run.
+    let mut local_manifest = local_manifest;
+    if local_manifest.last_sync_ms.is_none() {
+      local_manifest.last_sync_ms = profile.last_sync.map(|s| (s as i64).saturating_mul(1000));
+    }
+    // Hoist any tombstones already recorded for this profile from a sidecar
+    // file (see `apply_local_tombstones` for the storage format).
+    if let Ok(ts) = load_local_tombstones(&profile_dir) {
+      local_manifest.tombstones = ts;
+    }
+
+    // Compute diff (file-level three-way merge)
+    let device_id = get_or_create_device_id();
+    let diff = compute_diff(&local_manifest, remote_manifest.as_ref(), &device_id);
 
     if diff.is_empty() {
       log::info!("Profile {} is already in sync", profile_id);
@@ -477,20 +582,51 @@ impl SyncEngine {
     }
 
     let upload_bytes: u64 = diff.files_to_upload.iter().map(|f| f.size).sum();
-    let download_bytes: u64 = diff.files_to_download.iter().map(|f| f.size).sum();
+    let download_bytes: u64 = diff
+      .files_to_download
+      .iter()
+      .chain(diff.conflicts.iter().map(|c| &c.remote_entry))
+      .map(|f| f.size)
+      .sum();
     let total_files = diff.files_to_upload.len()
       + diff.files_to_download.len()
       + diff.files_to_delete_local.len()
-      + diff.files_to_delete_remote.len();
+      + diff.files_to_delete_remote.len()
+      + diff.conflicts.len();
 
     log::info!(
-      "Profile {} diff: {} to upload, {} to download, {} to delete local, {} to delete remote",
+      "Profile {} diff: {} to upload, {} to download, {} to delete local, {} to delete remote, {} conflicts",
       profile_id,
       diff.files_to_upload.len(),
       diff.files_to_download.len(),
       diff.files_to_delete_local.len(),
-      diff.files_to_delete_remote.len()
+      diff.files_to_delete_remote.len(),
+      diff.conflicts.len()
     );
+
+    // Surface conflicts to the UI before we start any uploads/downloads so the
+    // user sees a toast even if a later download fails.
+    if !diff.conflicts.is_empty() {
+      let conflict_payload: Vec<serde_json::Value> = diff
+        .conflicts
+        .iter()
+        .map(|c| {
+          serde_json::json!({
+            "path": c.path,
+            "conflict_local_path": c.conflict_local_path,
+            "device_id": device_id,
+          })
+        })
+        .collect();
+      let _ = events::emit(
+        "sync-conflict-detected",
+        serde_json::json!({
+          "profile_id": profile_id,
+          "profile_name": profile.name,
+          "conflicts": conflict_payload,
+        }),
+      );
+    }
 
     let _ = events::emit(
       "profile-sync-progress",
@@ -533,13 +669,35 @@ impl SyncEngine {
         .await?;
     }
 
-    // Delete local files that don't exist remotely (when remote is newer)
+    // Download remote-side conflict copies next to the local files. The local
+    // file is preserved; the remote version lands as `<path>.conflict-<device>-<ms>`.
+    if !diff.conflicts.is_empty() {
+      self
+        .download_conflict_files(
+          &profile_id,
+          &profile_dir,
+          &diff.conflicts,
+          encryption_key.as_ref(),
+          &key_prefix,
+        )
+        .await?;
+    }
+
+    // Delete local files that don't exist remotely (when remote is newer).
+    // Each such deletion is recorded as a tombstone with `now_ms` so future
+    // syncs from the same device propagate the delete intent.
+    let mut new_local_tombstones: Vec<TombstoneEntry> = Vec::new();
+    let delete_ms = now_unix_ms();
     for path in &diff.files_to_delete_local {
       let file_path = profile_dir.join(path);
       if file_path.exists() {
         let _ = fs::remove_file(&file_path);
         log::debug!("Deleted local file: {}", path);
       }
+      new_local_tombstones.push(TombstoneEntry {
+        path: path.clone(),
+        deleted_at_ms: delete_ms,
+      });
     }
 
     // Delete remote files that don't exist locally (when local is newer)
@@ -557,17 +715,51 @@ impl SyncEngine {
     // If we recovered from an empty local state (downloaded everything from remote),
     // regenerate the manifest from the actual files now on disk so we don't
     // overwrite the remote manifest with an empty one.
-    let final_manifest = if local_manifest.files.is_empty() && !diff.files_to_download.is_empty() {
-      let mut new_cache = HashCache::load(&cache_path);
-      let mut regenerated = generate_manifest(&profile_id, &profile_dir, &mut new_cache)?;
-      new_cache.save(&cache_path)?;
-      regenerated.encrypted = encryption_key.is_some();
-      regenerated
-    } else {
-      let mut m = local_manifest;
-      m.encrypted = encryption_key.is_some();
-      m
-    };
+    let mut final_manifest =
+      if local_manifest.files.is_empty() && !diff.files_to_download.is_empty() {
+        let mut new_cache = HashCache::load(&cache_path);
+        let mut regenerated = generate_manifest(&profile_id, &profile_dir, &mut new_cache)?;
+        new_cache.save(&cache_path)?;
+        regenerated.encrypted = encryption_key.is_some();
+        regenerated
+      } else {
+        let mut m = local_manifest;
+        m.encrypted = encryption_key.is_some();
+        m
+      };
+
+    // Merge the new tombstones we just generated with any pre-existing ones,
+    // collapse duplicates by keeping the latest deleted_at_ms per path, and
+    // persist the local tombstone sidecar so we don't forget across runs.
+    if !new_local_tombstones.is_empty() || !final_manifest.tombstones.is_empty() {
+      let mut combined: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+      for t in final_manifest.tombstones.drain(..) {
+        combined.insert(t.path, t.deleted_at_ms);
+      }
+      for t in new_local_tombstones {
+        combined
+          .entry(t.path)
+          .and_modify(|e| {
+            if t.deleted_at_ms > *e {
+              *e = t.deleted_at_ms;
+            }
+          })
+          .or_insert(t.deleted_at_ms);
+      }
+      let mut merged: Vec<TombstoneEntry> = combined
+        .into_iter()
+        .map(|(path, deleted_at_ms)| TombstoneEntry {
+          path,
+          deleted_at_ms,
+        })
+        .collect();
+      merged.sort_by(|a, b| a.path.cmp(&b.path));
+      final_manifest.tombstones = merged.clone();
+      let _ = save_local_tombstones(&profile_dir, &merged);
+    }
+
+    // Stamp last_sync_ms = now so the next diff has a fresh "base" anchor.
+    final_manifest.last_sync_ms = Some(now_unix_ms());
 
     // Upload manifest.json last for atomicity
     self
@@ -593,17 +785,40 @@ impl SyncEngine {
       let _ = self.sync_vpn(vpn_id, Some(app_handle)).await;
     }
 
-    // Download remote metadata and merge changes (name, tags, notes, etc.)
+    // Download remote metadata and merge changes (name, tags, notes, etc.).
+    // We previously OVERWROTE local fields with remote unconditionally — that
+    // silently clobbered local edits made between syncs. Now: only copy a
+    // remote field into the local profile if the remote metadata file was
+    // last modified AFTER our last successful sync (i.e. another device wrote
+    // it since we last saw it). Local edits made on this device since the
+    // last sync are uploaded above (in upload_profile_metadata) and therefore
+    // don't need to be re-applied here.
     let remote_metadata_key = format!("{}profiles/{}/metadata.json", key_prefix, profile_id);
+    let remote_meta_stat = self.client.stat(&remote_metadata_key).await.ok();
+    let remote_mtime_ms: Option<i64> = remote_meta_stat
+      .as_ref()
+      .and_then(|s| s.last_modified.as_ref())
+      .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+      .map(|dt| dt.with_timezone(&Utc).timestamp_millis());
+    let local_last_sync_ms: i64 = profile
+      .last_sync
+      .map(|s| (s as i64).saturating_mul(1000))
+      .unwrap_or(0);
+    let remote_is_newer = remote_mtime_ms
+      .map(|m| m > local_last_sync_ms)
+      .unwrap_or(false);
+
     if let Ok(remote_meta) = self.download_profile_metadata(&remote_metadata_key).await {
       let mut updated_profile = profile.clone();
-      // Merge fields that can be changed on other devices
-      updated_profile.name = remote_meta.name;
-      updated_profile.tags = remote_meta.tags;
-      updated_profile.note = remote_meta.note;
-      updated_profile.proxy_id = remote_meta.proxy_id;
-      updated_profile.vpn_id = remote_meta.vpn_id;
-      updated_profile.group_id = remote_meta.group_id;
+      if remote_is_newer {
+        // Other device's metadata is newer than our last sync — take its values.
+        updated_profile.name = remote_meta.name;
+        updated_profile.tags = remote_meta.tags;
+        updated_profile.note = remote_meta.note;
+        updated_profile.proxy_id = remote_meta.proxy_id;
+        updated_profile.vpn_id = remote_meta.vpn_id;
+        updated_profile.group_id = remote_meta.group_id;
+      }
       updated_profile.last_sync = Some(
         std::time::SystemTime::now()
           .duration_since(std::time::UNIX_EPOCH)
@@ -1326,6 +1541,85 @@ impl SyncEngine {
         "Critical files failed to download: {}. Sync aborted to prevent data loss.",
         file_list.join(", ")
       )));
+    }
+
+    Ok(())
+  }
+
+  /// Download the remote-side of each conflicted file into a sibling
+  /// `.conflict-<device>-<ms>` file. The local file at the original path is
+  /// preserved verbatim. Best-effort: a failed conflict download is logged but
+  /// does not abort the sync, because the local copy is already safe.
+  async fn download_conflict_files(
+    &self,
+    profile_id: &str,
+    profile_dir: &Path,
+    conflicts: &[ConflictedFile],
+    encryption_key: Option<&[u8; 32]>,
+    key_prefix: &str,
+  ) -> SyncResult<()> {
+    if conflicts.is_empty() {
+      return Ok(());
+    }
+
+    let keys: Vec<String> = conflicts
+      .iter()
+      .map(|c| format!("{}profiles/{}/files/{}", key_prefix, profile_id, c.path))
+      .collect();
+    let batch = self.client.presign_download_batch(keys).await?;
+    let url_map: HashMap<String, String> = batch
+      .items
+      .into_iter()
+      .map(|item| (item.key, item.url))
+      .collect();
+
+    for c in conflicts {
+      let remote_key = format!("{}profiles/{}/files/{}", key_prefix, profile_id, c.path);
+      let Some(url) = url_map.get(&remote_key) else {
+        log::warn!(
+          "Conflict download skipped: no presigned URL for {}",
+          remote_key
+        );
+        continue;
+      };
+      let data = match self.client.download_bytes(url).await {
+        Ok(d) => d,
+        Err(e) => {
+          log::warn!("Conflict download failed for {}: {}", c.path, e);
+          continue;
+        }
+      };
+      let write_data = if let Some(key) = encryption_key {
+        match encryption::decrypt_bytes(key, &data) {
+          Ok(d) => d,
+          Err(e) => {
+            log::warn!("Conflict decrypt failed for {}: {}", c.path, e);
+            continue;
+          }
+        }
+      } else {
+        data
+      };
+
+      let dest = profile_dir.join(&c.conflict_local_path);
+      if let Some(parent) = dest.parent() {
+        let _ = fs::create_dir_all(parent);
+      }
+      if let Err(e) = fs::write(&dest, &write_data) {
+        log::warn!(
+          "Conflict write failed for {}: {} ({})",
+          c.conflict_local_path,
+          e,
+          dest.display()
+        );
+        continue;
+      }
+      log::info!(
+        "Saved conflict copy for profile {}: {} -> {}",
+        profile_id,
+        c.path,
+        c.conflict_local_path
+      );
     }
 
     Ok(())

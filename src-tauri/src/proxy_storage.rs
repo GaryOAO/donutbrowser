@@ -59,7 +59,7 @@ pub fn save_proxy_config(config: &ProxyConfig) -> Result<(), Box<dyn std::error:
 
   let file_path = storage_dir.join(format!("{}.json", config.id));
   let content = serde_json::to_string_pretty(config)?;
-  fs::write(&file_path, content)?;
+  crate::atomic_write::atomic_write_bytes(&file_path, content.as_bytes())?;
 
   Ok(())
 }
@@ -122,7 +122,7 @@ pub fn update_proxy_config(config: &ProxyConfig) -> bool {
   }
 
   match serde_json::to_string_pretty(config) {
-    Ok(content) => fs::write(&file_path, content).is_ok(),
+    Ok(content) => crate::atomic_write::atomic_write_bytes(&file_path, content.as_bytes()).is_ok(),
     Err(_) => false,
   }
 }

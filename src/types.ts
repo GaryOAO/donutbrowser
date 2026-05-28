@@ -51,6 +51,7 @@ export interface BrowserProfile {
   created_by_id?: string;
   created_by_email?: string;
   dns_blocklist?: string;
+  deleted_at?: number;
 }
 
 export interface Extension {
@@ -159,6 +160,8 @@ export interface StoredProxy {
   last_latency_ms?: number;
   last_available_at?: number;
   cooldown_until?: number;
+  dynamic_proxy_url?: string;
+  dynamic_proxy_format?: string;
 }
 
 export interface LocationItem {

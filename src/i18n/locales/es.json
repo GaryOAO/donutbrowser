@@ -285,7 +285,9 @@
       "profile": "Profile",
       "result": "Result",
       "time": "Time",
-      "runFailed": "Bulk task failed"
+      "runFailed": "Bulk task failed",
+      "cancel": "Cancel",
+      "progress": "{{completed}} of {{total}} complete"
     }
   },
   "createProfile": {
@@ -337,14 +339,33 @@
       "downloading": "Descargando versión de {{browser}} ({{version}})...",
       "latestNeedsDownload": "La última versión ({{version}}) necesita ser descargada",
       "latestAvailable": "La última versión ({{version}}) está disponible",
-      "latestDownloading": "Descargando versión ({{version}})..."
+      "latestDownloading": "Descargando versión ({{version}})...",
+      "preparing": "Se preparará el binario del navegador (versión {{version}}) en el primer inicio."
     },
     "chromiumLabel": "Chromium",
     "chromiumSubtitle": "Impulsado por Wayfern",
     "firefoxLabel": "Firefox",
     "firefoxSubtitle": "Impulsado por Camoufox",
     "camoufoxWarning": "Firefox (Camoufox) está mantenido por una organización de terceros. Para uso en producción, utilice Chromium.",
-    "platformUnavailable": "{{browser}} aún no está disponible en tu plataforma."
+    "platformUnavailable": "{{browser}} aún no está disponible en tu plataforma.",
+    "browserLabel": "Navegador",
+    "networkSource": {
+      "title": "Origen de red",
+      "description": "Tráfico saliente de este perfil. Elige un proxy guardado, una VPN o un nodo de suscripción.",
+      "none": "Ninguno (conexión directa)",
+      "storedProxies": "Proxies guardados",
+      "vpns": "VPNs",
+      "subscriptionHeading": "Suscripción: {{name}}",
+      "createNewProxy": "Crear nuevo proxy...",
+      "search": "Buscar proxies, VPNs o nodos...",
+      "notFound": "Ningún origen coincide."
+    },
+    "advanced": {
+      "show": "Opciones avanzadas",
+      "hide": "Ocultar opciones avanzadas",
+      "fingerprint": "Huella"
+    },
+    "suggestedName": "Perfil {{counter}}"
   },
   "deleteDialog": {
     "title": "Eliminar Perfil",
@@ -627,7 +648,8 @@
     "toast": {
       "profileSynced": "Perfil '{{name}}' sincronizado correctamente",
       "profileSyncFailed": "Error al sincronizar el perfil '{{name}}'",
-      "profileSyncFailedWithError": "Error al sincronizar el perfil '{{name}}': {{error}}"
+      "profileSyncFailedWithError": "Error al sincronizar el perfil '{{name}}': {{error}}",
+      "syncingProfile": "Sincronizando perfil '{{name}}'..."
     }
   },
   "integrations": {
@@ -873,7 +895,9 @@
       "exportSuccess": "{{count}} elementos exportados exitosamente",
       "syncSuccess": "Sincronización completada exitosamente",
       "profileSynced": "Perfil '{{name}}' sincronizado exitosamente",
-      "cacheCleared": "Caché limpiada exitosamente"
+      "cacheCleared": "Caché limpiada exitosamente",
+      "profilesAutoUpgraded": "{{count}} perfil(es) actualizado(s) automáticamente a la última versión: {{names}}",
+      "bgBrowserDownloadCompleted": "{{browser}} {{version}} descargado"
     },
     "error": {
       "profileCreateFailed": "Error al crear perfil",
@@ -903,7 +927,8 @@
       "syncing": "Sincronizando...",
       "syncingProfile": "Sincronizando perfil '{{name}}'...",
       "syncingProfileWithProgress": "{{count}} archivos ({{size}})",
-      "updatingVersions": "Actualizando versiones de navegadores..."
+      "updatingVersions": "Actualizando versiones de navegadores...",
+      "bgBrowserDownload": "Descargando {{browser}} {{version}} en segundo plano..."
     }
   },
   "errors": {
@@ -1048,7 +1073,8 @@
     "refreshFingerprint": "Actualizar Huella Digital",
     "canvasNoiseSeedPlaceholder": "Introduce una semilla para la huella digital del canvas",
     "addFontsPlaceholder": "Agregar fuentes...",
-    "enterAsJson": "Ingresa {{title}} como JSON"
+    "enterAsJson": "Ingresa {{title}} como JSON",
+    "userAgentPlaceholder": "Mozilla/5.0..."
   },
   "warnings": {
     "windowResizeTitle": "Dimensiones de ventana personalizadas",
@@ -1190,7 +1216,13 @@
     "syncEnableTooltip": "Habilitar sincronización",
     "syncDisableTooltip": "Deshabilitar sincronización",
     "loadGroupsFailed": "Error al cargar grupos de extensiones",
-    "assignGroupFailed": "Error al asignar grupo de extensiones"
+    "assignGroupFailed": "Error al asignar grupo de extensiones",
+    "management": {
+      "detail": {
+        "backToGroups": "Volver a grupos",
+        "editingGroupBreadcrumb": "Editando grupo"
+      }
+    }
   },
   "pro": {
     "badge": "PRO",
@@ -1215,7 +1247,14 @@
     "domains": "dominios",
     "fresh": "Actualizado",
     "stale": "Desactualizado",
-    "notCached": "Sin caché"
+    "notCached": "Sin caché",
+    "tiers": {
+      "none": "Sin bloqueo",
+      "light": "Bloqueo ligero",
+      "standard": "Bloqueo estándar",
+      "strict": "Bloqueo estricto",
+      "maximum": "Bloqueo máximo"
+    }
   },
   "vpns": {
     "form": {
@@ -1465,7 +1504,9 @@
     "acceptButton": "Acepto",
     "acceptSuccess": "Términos aceptados correctamente",
     "acceptFailed": "Error al aceptar los términos",
-    "tryAgain": "Por favor, inténtalo de nuevo"
+    "tryAgain": "Por favor, inténtalo de nuevo",
+    "declineButton": "Rechazar",
+    "declined": "Términos de Wayfern rechazados. Las funciones de Wayfern estarán deshabilitadas."
   },
   "commercialTrial": {
     "title": "Periodo de prueba comercial expirado",
@@ -1576,8 +1617,11 @@
     "addTagsPlaceholder": "Añadir etiquetas",
     "tagsHeader": "Etiquetas",
     "noteHeader": "Nota",
+    "syncHeader": "Sincronización",
     "vpnsHeading": "VPN",
-    "createByCountryHeading": "Crear por país"
+    "createByCountryHeading": "Crear por país",
+    "tagsUpdateFailed": "Error al actualizar las etiquetas del perfil",
+    "countriesLoadFailed": "Error al cargar los países"
   },
   "releaseTypeSelector": {
     "noReleaseTypes": "No hay tipos de versión disponibles.",
@@ -1602,7 +1646,9 @@
       "viewRelease": "Ver lanzamiento",
       "later": "Más tarde",
       "uploading": "Subiendo",
-      "downloading": "Descargando"
+      "downloading": "Descargando",
+      "autoUpdateStarted": "Actualización de {{browser}} iniciada",
+      "autoUpdateDescription": "Descargando {{browser}} {{version}} automáticamente. El progreso se mostrará en las notificaciones de descarga."
     }
   },
   "browserDownload": {
@@ -1703,5 +1749,41 @@
     "installSuccess": "Puerta de enlace instalada correctamente",
     "installError": "Error al instalar la puerta de enlace",
     "runningCount": "{{count}} instancias en ejecución"
+  },
+  "home": {
+    "deprecation": {
+      "title": "El soporte del navegador finalizará pronto",
+      "description": "El soporte para los siguientes perfiles se eliminará el {{date}}: {{profiles}}. Por favor, migra a perfiles de Wayfern o Camoufox.",
+      "learnMore": "Más información"
+    }
+  },
+  "updates": {
+    "notifications": {
+      "updateStarted": "Actualización de {{browser}} iniciada",
+      "updateStartedDescription": "La descarga de la versión {{version}} comenzará en breve. El inicio del navegador está deshabilitado hasta que se complete la actualización.",
+      "alreadyAvailable": "{{browser}} {{version}} ya está disponible",
+      "updatingProfileConfigs": "Actualizando configuraciones de perfil...",
+      "startingDownload": "Iniciando descarga de {{browser}} {{version}}",
+      "downloadStartingDescription": "El progreso de la descarga se mostrará abajo...",
+      "updateCompleted": "Actualización de {{browser}} completada",
+      "singleProfileUpdated": "El perfil \"{{name}}\" se ha actualizado a la versión {{version}}. Ahora puedes iniciar tus navegadores con la última versión.",
+      "multipleProfilesUpdated": "{{count}} perfiles se han actualizado a la versión {{version}}. Ahora puedes iniciar tus navegadores con la última versión.",
+      "versionAvailable": "La versión {{version}} ya está disponible. Los perfiles en ejecución usarán la nueva versión al reiniciarse."
+    }
+  },
+  "downloads": {
+    "geoip": {
+      "title": "Descargando base de datos GeoIP",
+      "completed": "¡Base de datos GeoIP descargada correctamente!"
+    }
+  },
+  "bulkAssign": {
+    "selectedProfilesLabel": "Perfiles seleccionados",
+    "moreProfiles": "y {{count}} más...",
+    "createNew": "Nuevo",
+    "newNamePlaceholder": "Nombre",
+    "selectPlaceholder": "Seleccione una opción",
+    "mixedSelection": "Los perfiles seleccionados tienen valores actuales diferentes. Elija un valor para aplicar a todos.",
+    "applyToAll": "Aplicar a todos los seleccionados"
   }
 }

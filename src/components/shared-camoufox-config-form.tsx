@@ -422,7 +422,7 @@ export function SharedCamoufoxConfigForm({
                       e.target.value || undefined,
                     );
                   }}
-                  placeholder="Mozilla/5.0..."
+                  placeholder={t("fingerprint.userAgentPlaceholder")}
                 />
               </div>
               <div className="space-y-2">

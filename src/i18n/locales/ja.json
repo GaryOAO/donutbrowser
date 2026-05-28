@@ -285,7 +285,9 @@
       "profile": "Profile",
       "result": "Result",
       "time": "Time",
-      "runFailed": "Bulk task failed"
+      "runFailed": "Bulk task failed",
+      "cancel": "Cancel",
+      "progress": "{{completed}} of {{total}} complete"
     }
   },
   "createProfile": {
@@ -337,14 +339,33 @@
       "downloading": "{{browser}} バージョン ({{version}}) をダウンロード中...",
       "latestNeedsDownload": "最新バージョン ({{version}}) をダウンロードする必要があります",
       "latestAvailable": "最新バージョン ({{version}}) は利用可能です",
-      "latestDownloading": "バージョン ({{version}}) をダウンロード中..."
+      "latestDownloading": "バージョン ({{version}}) をダウンロード中...",
+      "preparing": "初回起動時にブラウザバイナリ (バージョン {{version}}) を準備します。"
     },
     "chromiumLabel": "Chromium",
     "chromiumSubtitle": "Wayfern搭載",
     "firefoxLabel": "Firefox",
     "firefoxSubtitle": "Camoufox搭載",
     "camoufoxWarning": "Firefox（Camoufox）はサードパーティの組織によって管理されています。本番環境での使用にはChromiumをご利用ください。",
-    "platformUnavailable": "{{browser}} はまだお使いのプラットフォームで利用できません。"
+    "platformUnavailable": "{{browser}} はまだお使いのプラットフォームで利用できません。",
+    "browserLabel": "ブラウザ",
+    "networkSource": {
+      "title": "ネットワークソース",
+      "description": "このプロファイルの送信トラフィック。保存済みプロキシ、VPN、サブスクリプションノードのいずれかを選択します。",
+      "none": "なし (直接接続)",
+      "storedProxies": "保存済みプロキシ",
+      "vpns": "VPN",
+      "subscriptionHeading": "サブスクリプション: {{name}}",
+      "createNewProxy": "新しいプロキシを作成...",
+      "search": "プロキシ、VPN、ノードを検索...",
+      "notFound": "一致するソースが見つかりません。"
+    },
+    "advanced": {
+      "show": "詳細オプション",
+      "hide": "詳細オプションを隠す",
+      "fingerprint": "フィンガープリント"
+    },
+    "suggestedName": "プロファイル {{counter}}"
   },
   "deleteDialog": {
     "title": "プロファイルを削除",
@@ -627,7 +648,8 @@
     "toast": {
       "profileSynced": "プロファイル '{{name}}' を同期しました",
       "profileSyncFailed": "プロファイル '{{name}}' の同期に失敗しました",
-      "profileSyncFailedWithError": "プロファイル '{{name}}' の同期に失敗しました: {{error}}"
+      "profileSyncFailedWithError": "プロファイル '{{name}}' の同期に失敗しました: {{error}}",
+      "syncingProfile": "プロファイル '{{name}}' を同期中..."
     }
   },
   "integrations": {
@@ -873,7 +895,9 @@
       "exportSuccess": "{{count}} 個のアイテムが正常にエクスポートされました",
       "syncSuccess": "同期が正常に完了しました",
       "profileSynced": "プロファイル '{{name}}' が正常に同期されました",
-      "cacheCleared": "キャッシュが正常にクリアされました"
+      "cacheCleared": "キャッシュが正常にクリアされました",
+      "profilesAutoUpgraded": "{{count}} 件のプロファイルを最新バージョンに自動アップグレードしました: {{names}}",
+      "bgBrowserDownloadCompleted": "{{browser}} {{version}} をダウンロードしました"
     },
     "error": {
       "profileCreateFailed": "プロファイルの作成に失敗しました",
@@ -903,7 +927,8 @@
       "syncing": "同期中...",
       "syncingProfile": "プロファイル '{{name}}' を同期中...",
       "syncingProfileWithProgress": "{{count}} ファイル ({{size}})",
-      "updatingVersions": "ブラウザバージョンを更新中..."
+      "updatingVersions": "ブラウザバージョンを更新中...",
+      "bgBrowserDownload": "{{browser}} {{version}} をバックグラウンドでダウンロード中..."
     }
   },
   "errors": {
@@ -1048,7 +1073,8 @@
     "refreshFingerprint": "フィンガープリントを更新",
     "canvasNoiseSeedPlaceholder": "キャンバスフィンガープリント用のシード文字列を入力",
     "addFontsPlaceholder": "フォントを追加...",
-    "enterAsJson": "{{title}} を JSON で入力"
+    "enterAsJson": "{{title}} を JSON で入力",
+    "userAgentPlaceholder": "Mozilla/5.0..."
   },
   "warnings": {
     "windowResizeTitle": "カスタムウィンドウサイズ",
@@ -1190,7 +1216,13 @@
     "syncEnableTooltip": "同期を有効にする",
     "syncDisableTooltip": "同期を無効にする",
     "loadGroupsFailed": "拡張機能グループの読み込みに失敗しました",
-    "assignGroupFailed": "拡張機能グループの割り当てに失敗しました"
+    "assignGroupFailed": "拡張機能グループの割り当てに失敗しました",
+    "management": {
+      "detail": {
+        "backToGroups": "グループ一覧に戻る",
+        "editingGroupBreadcrumb": "グループを編集中"
+      }
+    }
   },
   "pro": {
     "badge": "PRO",
@@ -1215,7 +1247,14 @@
     "domains": "ドメイン",
     "fresh": "最新",
     "stale": "期限切れ",
-    "notCached": "キャッシュなし"
+    "notCached": "キャッシュなし",
+    "tiers": {
+      "none": "ブロックなし",
+      "light": "軽いブロック",
+      "standard": "標準ブロック",
+      "strict": "厳格なブロック",
+      "maximum": "最大ブロック"
+    }
   },
   "vpns": {
     "form": {
@@ -1465,7 +1504,9 @@
     "acceptButton": "同意します",
     "acceptSuccess": "規約に同意しました",
     "acceptFailed": "規約への同意に失敗しました",
-    "tryAgain": "もう一度お試しください"
+    "tryAgain": "もう一度お試しください",
+    "declineButton": "拒否",
+    "declined": "Wayfern 利用規約を拒否しました。Wayfern 機能は無効化されます。"
   },
   "commercialTrial": {
     "title": "商用試用期間が終了しました",
@@ -1576,8 +1617,11 @@
     "addTagsPlaceholder": "タグを追加",
     "tagsHeader": "タグ",
     "noteHeader": "メモ",
+    "syncHeader": "同期",
     "vpnsHeading": "VPN",
-    "createByCountryHeading": "国別に作成"
+    "createByCountryHeading": "国別に作成",
+    "tagsUpdateFailed": "プロファイルのタグの更新に失敗しました",
+    "countriesLoadFailed": "国の読み込みに失敗しました"
   },
   "releaseTypeSelector": {
     "noReleaseTypes": "利用可能なリリースタイプがありません。",
@@ -1602,7 +1646,9 @@
       "viewRelease": "リリースを見る",
       "later": "後で",
       "uploading": "アップロード中",
-      "downloading": "ダウンロード中"
+      "downloading": "ダウンロード中",
+      "autoUpdateStarted": "{{browser}} の更新を開始しました",
+      "autoUpdateDescription": "{{browser}} {{version}} を自動でダウンロード中です。進捗はダウンロード通知に表示されます。"
     }
   },
   "browserDownload": {
@@ -1703,5 +1749,41 @@
     "installSuccess": "ゲートウェイのインストールに成功しました",
     "installError": "ゲートウェイのインストールに失敗しました",
     "runningCount": "{{count}} 個のインスタンスが実行中"
+  },
+  "home": {
+    "deprecation": {
+      "title": "ブラウザのサポート終了が近づいています",
+      "description": "次のプロファイルのサポートは {{date}} に終了します: {{profiles}}。Wayfern または Camoufox プロファイルに移行してください。",
+      "learnMore": "詳細を見る"
+    }
+  },
+  "updates": {
+    "notifications": {
+      "updateStarted": "{{browser}} の更新を開始しました",
+      "updateStartedDescription": "バージョン {{version}} のダウンロードが間もなく開始されます。更新が完了するまでブラウザの起動は無効です。",
+      "alreadyAvailable": "{{browser}} {{version}} は既に利用可能です",
+      "updatingProfileConfigs": "プロファイル設定を更新中...",
+      "startingDownload": "{{browser}} {{version}} のダウンロードを開始しています",
+      "downloadStartingDescription": "ダウンロードの進捗は下に表示されます...",
+      "updateCompleted": "{{browser}} の更新が完了しました",
+      "singleProfileUpdated": "プロファイル「{{name}}」をバージョン {{version}} に更新しました。最新バージョンでブラウザを起動できます。",
+      "multipleProfilesUpdated": "{{count}} 個のプロファイルをバージョン {{version}} に更新しました。最新バージョンでブラウザを起動できます。",
+      "versionAvailable": "バージョン {{version}} が利用可能になりました。実行中のプロファイルは再起動時に新しいバージョンを使用します。"
+    }
+  },
+  "downloads": {
+    "geoip": {
+      "title": "GeoIP データベースをダウンロード中",
+      "completed": "GeoIP データベースのダウンロードが完了しました！"
+    }
+  },
+  "bulkAssign": {
+    "selectedProfilesLabel": "選択中のプロファイル",
+    "moreProfiles": "他 {{count}} 件...",
+    "createNew": "新規",
+    "newNamePlaceholder": "名前",
+    "selectPlaceholder": "オプションを選択",
+    "mixedSelection": "選択したプロファイルの現在値が異なります。すべてに適用する値を選択してください。",
+    "applyToAll": "選択したすべてに適用"
   }
 }

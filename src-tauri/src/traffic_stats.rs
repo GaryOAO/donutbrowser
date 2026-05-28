@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -101,7 +101,7 @@ pub struct TrafficStats {
   pub domain_access_history: Vec<DomainAccessPoint>,
   /// Unique IPs accessed
   #[serde(default)]
-  pub unique_ips: Vec<String>,
+  pub unique_ips: HashSet<String>,
 }
 
 impl TrafficStats {
@@ -119,7 +119,7 @@ impl TrafficStats {
       bandwidth_history: Vec::new(),
       domains: HashMap::new(),
       domain_access_history: Vec::new(),
-      unique_ips: Vec::new(),
+      unique_ips: HashSet::new(),
     }
   }
 
@@ -243,8 +243,8 @@ impl TrafficStats {
 
   /// Record an IP address access
   pub fn record_ip(&mut self, ip: &str) {
-    if !self.unique_ips.contains(&ip.to_string()) {
-      self.unique_ips.push(ip.to_string());
+    if !self.unique_ips.contains(ip) {
+      self.unique_ips.insert(ip.to_string());
     }
   }
 
@@ -482,7 +482,7 @@ fn merge_traffic_stats(dest: &mut TrafficStats, src: &TrafficStats) {
   // Merge unique IPs
   for ip in &src.unique_ips {
     if !dest.unique_ips.contains(ip) {
-      dest.unique_ips.push(ip.clone());
+      dest.unique_ips.insert(ip.clone());
     }
   }
 }
@@ -535,7 +535,7 @@ pub struct LiveTrafficTracker {
   bytes_received: AtomicU64,
   requests: AtomicU64,
   domain_stats: RwLock<HashMap<String, (u64, u64, u64)>>, // domain -> (count, sent, recv)
-  ips: RwLock<Vec<String>>,
+  ips: RwLock<HashSet<String>>,
   #[allow(dead_code)]
   session_start: u64,
   last_session_write: std::sync::atomic::AtomicU64,
@@ -550,7 +550,7 @@ impl LiveTrafficTracker {
       bytes_received: AtomicU64::new(0),
       requests: AtomicU64::new(0),
       domain_stats: RwLock::new(HashMap::new()),
-      ips: RwLock::new(Vec::new()),
+      ips: RwLock::new(HashSet::new()),
       session_start: current_timestamp(),
       last_session_write: std::sync::atomic::AtomicU64::new(0),
     }
@@ -618,10 +618,14 @@ impl LiveTrafficTracker {
   }
 
   pub fn record_ip(&self, ip: &str) {
-    if let Ok(mut ips) = self.ips.write() {
-      if !ips.contains(&ip.to_string()) {
-        ips.push(ip.to_string());
+    // Fast path: skip the write lock if we've already seen this IP.
+    if let Ok(ips) = self.ips.read() {
+      if ips.contains(ip) {
+        return;
       }
+    }
+    if let Ok(mut ips) = self.ips.write() {
+      ips.insert(ip.to_string());
     }
   }
 
@@ -822,7 +826,7 @@ impl LiveTrafficTracker {
 
     // Update IPs and clear them after flushing (like domain_stats)
     if let Ok(mut ips) = self.ips.write() {
-      for ip in ips.drain(..) {
+      for ip in ips.drain() {
         stats.record_ip(&ip);
       }
     }
@@ -872,7 +876,7 @@ pub struct FilteredTrafficStats {
   /// Domain access statistics filtered to requested time period
   pub domains: HashMap<String, DomainAccess>,
   /// Unique IPs accessed
-  pub unique_ips: Vec<String>,
+  pub unique_ips: HashSet<String>,
 }
 
 /// Get traffic stats for a profile, filtered to a specific time period

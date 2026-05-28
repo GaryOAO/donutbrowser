@@ -295,6 +295,7 @@ impl Downloader {
     Ok(())
   }
 
+  #[allow(clippy::too_many_arguments)]
   pub async fn download_browser<R: tauri::Runtime>(
     &self,
     _app_handle: &tauri::AppHandle<R>,
@@ -303,6 +304,7 @@ impl Downloader {
     download_info: &DownloadInfo,
     dest_path: &Path,
     cancel_token: Option<&CancellationToken>,
+    expected_sha256: Option<&str>,
   ) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
     let file_path = dest_path.join(&download_info.filename);
 
@@ -528,6 +530,31 @@ impl Downloader {
 
     // Flush remaining buffered data to disk
     file.flush()?;
+    drop(file);
+
+    // Verify sha256 if expected hash provided
+    if let Some(expected) = expected_sha256 {
+      let expected = expected.trim().to_lowercase();
+      if !expected.is_empty() {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        let mut f = std::fs::File::open(&file_path)?;
+        let mut buf = [0u8; 64 * 1024];
+        loop {
+          let n = std::io::Read::read(&mut f, &mut buf)?;
+          if n == 0 {
+            break;
+          }
+          hasher.update(&buf[..n]);
+        }
+        let digest = hasher.finalize();
+        let actual: String = digest.iter().map(|b| format!("{b:02x}")).collect();
+        if actual != expected {
+          let _ = std::fs::remove_file(&file_path);
+          return Err(format!("checksum mismatch: expected {expected}, got {actual}").into());
+        }
+      }
+    }
 
     Ok(file_path)
   }
@@ -679,6 +706,7 @@ impl Downloader {
         &download_info,
         &browser_dir,
         Some(&cancel_token),
+        None,
       )
       .await
     {
@@ -947,6 +975,8 @@ impl Downloader {
                 updated.len(),
                 updated
               );
+              use tauri::Emitter;
+              let _ = app_handle_for_update.emit("profiles-auto-upgraded", updated.clone());
             }
           }
           Err(e) => {

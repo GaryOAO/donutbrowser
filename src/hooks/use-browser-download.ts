@@ -443,7 +443,7 @@ export function useBrowserDownload() {
               showToast({
                 id: "geoip-download",
                 type: "download",
-                title: "Downloading GeoIP database",
+                title: i18n.t("downloads.geoip.title"),
                 stage: "downloading",
                 progress: {
                   percentage,
@@ -455,7 +455,7 @@ export function useBrowserDownload() {
               showToast({
                 id: "geoip-download",
                 type: "download",
-                title: "GeoIP database downloaded successfully!",
+                title: i18n.t("downloads.geoip.completed"),
                 stage: "completed",
               });
             }

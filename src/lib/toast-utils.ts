@@ -226,20 +226,19 @@ export function showErrorToast(
 export function showAutoUpdateToast(
   browserName: string,
   version: string,
-  options?: {
+  options: {
+    title: string;
+    description: string;
     id?: string;
-    description?: string;
     duration?: number;
   },
 ) {
   return showToast({
     type: "loading",
-    title: `${browserName} update started`,
-    description:
-      options?.description ??
-      `Automatically downloading ${browserName} ${version}. Progress will be shown in download notifications.`,
-    id: options?.id ?? `auto-update-${browserName.toLowerCase()}-${version}`,
-    duration: options?.duration ?? 4000,
+    title: options.title,
+    description: options.description,
+    id: options.id ?? `auto-update-${browserName.toLowerCase()}-${version}`,
+    duration: options.duration ?? 4000,
   });
 }
 
@@ -248,7 +247,7 @@ export function dismissToast(id: string) {
 }
 
 export function showSyncProgressToast(
-  profileName: string,
+  title: string,
   progress: {
     completed_files: number;
     total_files: number;
@@ -263,7 +262,7 @@ export function showSyncProgressToast(
 ) {
   return showToast({
     type: "sync-progress",
-    title: `Syncing profile '${profileName}'...`,
+    title,
     progress,
     id: options?.id,
     duration: Number.POSITIVE_INFINITY,

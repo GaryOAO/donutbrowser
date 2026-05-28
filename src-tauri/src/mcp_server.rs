@@ -221,10 +221,10 @@ impl McpServer {
   ) {
     let app = Router::new()
       .route(
-        "/mcp/{token}",
-        post(Self::handle_mcp_post)
-          .get(Self::handle_mcp_get)
-          .delete(Self::handle_mcp_delete),
+        "/mcp/{_token}",
+        post(Self::handle_mcp_gone)
+          .get(Self::handle_mcp_gone)
+          .delete(Self::handle_mcp_gone),
       )
       .route(
         "/mcp",
@@ -274,26 +274,42 @@ impl McpServer {
       return Ok(next.run(req).await);
     }
 
-    // Check token from URL path: /mcp/{token}
-    let path_token = path
-      .strip_prefix("/mcp/")
-      .filter(|t| !t.is_empty() && !t.contains('/'));
+    // The legacy /mcp/{token} route is gone — let the handler return 410.
+    if path.starts_with("/mcp/") {
+      return Ok(next.run(req).await);
+    }
 
-    // Check token from Authorization header
+    // Token MUST be supplied via Authorization: Bearer <token> header.
     let header_token = req
       .headers()
       .get(header::AUTHORIZATION)
       .and_then(|h| h.to_str().ok())
       .and_then(|h| h.strip_prefix("Bearer "));
 
+    let token = match header_token {
+      Some(t) => t,
+      None => return Err(StatusCode::UNAUTHORIZED),
+    };
+
+    // Constant-time comparison to avoid token timing leaks.
     let valid =
-      path_token == Some(state.token.as_str()) || header_token == Some(state.token.as_str());
+      subtle::ConstantTimeEq::ct_eq(token.as_bytes(), state.token.as_bytes()).unwrap_u8() == 1;
 
     if !valid {
       return Err(StatusCode::UNAUTHORIZED);
     }
 
     Ok(next.run(req).await)
+  }
+
+  async fn handle_mcp_gone() -> impl IntoResponse {
+    log::warn!(
+      "[mcp] Rejected request to deprecated /mcp/<token> path. Use Authorization: Bearer header against /mcp."
+    );
+    (
+      StatusCode::GONE,
+      "The /mcp/<token> URL path is no longer supported. Send the token via Authorization: Bearer <token> against /mcp.",
+    )
   }
 
   async fn handle_health() -> impl IntoResponse {
@@ -364,12 +380,16 @@ impl McpServer {
             result: Some(result.1),
             error: None,
           };
-          Response::builder()
-            .status(StatusCode::OK)
-            .header(header::CONTENT_TYPE, "application/json")
-            .header("mcp-session-id", &session_id)
-            .body(Body::from(serde_json::to_vec(&body).unwrap()))
-            .unwrap()
+          let mut resp = Json(body).into_response();
+          match session_id.parse() {
+            Ok(value) => {
+              resp.headers_mut().insert("mcp-session-id", value);
+            }
+            Err(e) => {
+              log::warn!("[mcp] Generated session id is not a valid header value: {e}");
+            }
+          }
+          resp
         }
         Err((id, error)) => {
           let body = McpResponse {
@@ -1846,6 +1866,7 @@ impl McpServer {
         false,
         None,
         launch_hook,
+        None,
       )
       .await
       .map_err(|e| McpError {
@@ -3199,7 +3220,10 @@ impl McpServer {
       code: -32000,
       message: format!("Failed to list extensions: {e}"),
     })?;
-    Ok(serde_json::to_value(extensions).unwrap())
+    serde_json::to_value(extensions).map_err(|e| McpError {
+      code: -32000,
+      message: format!("Failed to serialize extensions: {e}"),
+    })
   }
 
   async fn handle_list_extension_groups(&self) -> Result<serde_json::Value, McpError> {
@@ -3214,7 +3238,10 @@ impl McpServer {
       code: -32000,
       message: format!("Failed to list extension groups: {e}"),
     })?;
-    Ok(serde_json::to_value(groups).unwrap())
+    serde_json::to_value(groups).map_err(|e| McpError {
+      code: -32000,
+      message: format!("Failed to serialize extension groups: {e}"),
+    })
   }
 
   async fn handle_create_extension_group(
@@ -3239,7 +3266,10 @@ impl McpServer {
       code: -32000,
       message: format!("Failed to create extension group: {e}"),
     })?;
-    Ok(serde_json::to_value(group).unwrap())
+    serde_json::to_value(group).map_err(|e| McpError {
+      code: -32000,
+      message: format!("Failed to serialize extension group: {e}"),
+    })
   }
 
   async fn handle_delete_extension_mcp(
@@ -3358,7 +3388,10 @@ impl McpServer {
         code: -32000,
         message: format!("Failed to assign extension group: {e}"),
       })?;
-    Ok(serde_json::to_value(profile).unwrap())
+    serde_json::to_value(profile).map_err(|e| McpError {
+      code: -32000,
+      message: format!("Failed to serialize profile: {e}"),
+    })
   }
 
   async fn handle_get_team_locks(&self) -> Result<serde_json::Value, McpError> {

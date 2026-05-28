@@ -1275,6 +1275,19 @@ pub async fn ensure_active_browsers_downloaded(
     };
 
     log::info!("Auto-downloading {browser} {version} (no versions found locally)");
+
+    // Signal the frontend that a background browser download is starting so
+    // the UI can surface a toast. Without this the app silently saturates the
+    // network with hundreds of MB on first run.
+    use tauri::Emitter;
+    let _ = app_handle.emit(
+      "bg-browser-download-started",
+      serde_json::json!({
+        "browser": browser.to_string(),
+        "version": version.clone(),
+      }),
+    );
+
     match crate::downloader::download_browser(
       app_handle.clone(),
       browser.to_string(),
@@ -1285,9 +1298,26 @@ pub async fn ensure_active_browsers_downloaded(
       Ok(_) => {
         downloaded.push(format!("{browser} {version}"));
         log::info!("Successfully auto-downloaded {browser} {version}");
+        let _ = app_handle.emit(
+          "bg-browser-download-completed",
+          serde_json::json!({
+            "browser": browser.to_string(),
+            "version": version.clone(),
+            "success": true,
+          }),
+        );
       }
       Err(e) => {
         log::warn!("Failed to auto-download {browser} {version}: {e}");
+        let _ = app_handle.emit(
+          "bg-browser-download-completed",
+          serde_json::json!({
+            "browser": browser.to_string(),
+            "version": version.clone(),
+            "success": false,
+            "error": e.to_string(),
+          }),
+        );
       }
     }
   }

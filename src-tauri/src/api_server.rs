@@ -17,9 +17,10 @@ use axum::{
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use subtle::ConstantTimeEq;
 use tokio::net::TcpListener;
 use tokio::sync::{mpsc, Mutex};
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use utoipa::{OpenApi, ToSchema};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
@@ -403,7 +404,24 @@ impl ApiServer {
       .merge(v1_routes)
       .nest("/ws", ws_routes)
       .route("/openapi.json", get(move || async move { Json(api) }))
-      .layer(CorsLayer::permissive())
+      .layer(
+        CorsLayer::new()
+          .allow_origin(AllowOrigin::predicate(|origin, _req| {
+            origin
+              .to_str()
+              .map(|o| {
+                o == "tauri://localhost"
+                  || o == "http://tauri.localhost"
+                  || o.starts_with("http://localhost:")
+                  || o.starts_with("https://localhost:")
+                  || o.starts_with("http://127.0.0.1:")
+                  || o.starts_with("https://127.0.0.1:")
+              })
+              .unwrap_or(false)
+          }))
+          .allow_methods(tower_http::cors::Any)
+          .allow_headers(tower_http::cors::Any),
+      )
       .with_state(state);
 
     // Start server task
@@ -475,8 +493,8 @@ async fn auth_middleware(
     Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
   };
 
-  // Compare tokens
-  if token != stored_token {
+  // Constant-time comparison to avoid timing side-channels on token equality
+  if token.as_bytes().ct_eq(stored_token.as_bytes()).unwrap_u8() != 1 {
     return Err(StatusCode::UNAUTHORIZED);
   }
 
@@ -678,6 +696,7 @@ async fn create_profile(
       false,
       None,
       request.launch_hook.clone(),
+      None,
     )
     .await
   {

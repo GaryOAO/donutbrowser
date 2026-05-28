@@ -285,7 +285,9 @@
       "profile": "Profile",
       "result": "Result",
       "time": "Time",
-      "runFailed": "Bulk task failed"
+      "runFailed": "Bulk task failed",
+      "cancel": "Cancel",
+      "progress": "{{completed}} of {{total}} complete"
     }
   },
   "createProfile": {
@@ -337,14 +339,33 @@
       "downloading": "Downloading {{browser}} version ({{version}})...",
       "latestNeedsDownload": "Latest version ({{version}}) needs to be downloaded",
       "latestAvailable": "Latest version ({{version}}) is available",
-      "latestDownloading": "Downloading version ({{version}})..."
+      "latestDownloading": "Downloading version ({{version}})...",
+      "preparing": "Will prepare browser binary (version {{version}}) on first launch."
     },
     "chromiumLabel": "Chromium",
     "chromiumSubtitle": "Powered by Wayfern",
     "firefoxLabel": "Firefox",
     "firefoxSubtitle": "Powered by Camoufox",
     "camoufoxWarning": "Firefox (Camoufox) is maintained by a third-party organization. For production use, please use Chromium.",
-    "platformUnavailable": "{{browser}} is not available on your platform yet."
+    "platformUnavailable": "{{browser}} is not available on your platform yet.",
+    "browserLabel": "Browser",
+    "networkSource": {
+      "title": "Network source",
+      "description": "Outbound traffic for this profile. Pick a stored proxy, a VPN, or a subscription node.",
+      "none": "None (direct connection)",
+      "storedProxies": "Stored proxies",
+      "vpns": "VPNs",
+      "subscriptionHeading": "Subscription: {{name}}",
+      "createNewProxy": "Create new proxy...",
+      "search": "Search proxies, VPNs, or nodes...",
+      "notFound": "No matching network source."
+    },
+    "advanced": {
+      "show": "Advanced options",
+      "hide": "Hide advanced options",
+      "fingerprint": "Fingerprint"
+    },
+    "suggestedName": "Profile {{counter}}"
   },
   "deleteDialog": {
     "title": "Delete Profile",
@@ -627,7 +648,8 @@
     "toast": {
       "profileSynced": "Profile '{{name}}' synced successfully",
       "profileSyncFailed": "Failed to sync profile '{{name}}'",
-      "profileSyncFailedWithError": "Failed to sync profile '{{name}}': {{error}}"
+      "profileSyncFailedWithError": "Failed to sync profile '{{name}}': {{error}}",
+      "syncingProfile": "Syncing profile '{{name}}'..."
     }
   },
   "integrations": {
@@ -873,7 +895,9 @@
       "exportSuccess": "Successfully exported {{count}} items",
       "syncSuccess": "Sync completed successfully",
       "profileSynced": "Profile '{{name}}' synced successfully",
-      "cacheCleared": "Cache cleared successfully"
+      "cacheCleared": "Cache cleared successfully",
+      "profilesAutoUpgraded": "{{count}} profile(s) auto-upgraded to latest version: {{names}}",
+      "bgBrowserDownloadCompleted": "{{browser}} {{version}} downloaded"
     },
     "error": {
       "profileCreateFailed": "Failed to create profile",
@@ -903,7 +927,8 @@
       "syncing": "Syncing...",
       "syncingProfile": "Syncing profile '{{name}}'...",
       "syncingProfileWithProgress": "{{count}} files ({{size}})",
-      "updatingVersions": "Updating browser versions..."
+      "updatingVersions": "Updating browser versions...",
+      "bgBrowserDownload": "Downloading {{browser}} {{version}} in background..."
     }
   },
   "errors": {
@@ -1048,7 +1073,8 @@
     "refreshFingerprint": "Refresh Fingerprint",
     "canvasNoiseSeedPlaceholder": "Enter a seed string for canvas fingerprint",
     "addFontsPlaceholder": "Add fonts...",
-    "enterAsJson": "Enter {{title}} as JSON"
+    "enterAsJson": "Enter {{title}} as JSON",
+    "userAgentPlaceholder": "Mozilla/5.0..."
   },
   "warnings": {
     "windowResizeTitle": "Custom Window Dimensions",
@@ -1190,7 +1216,22 @@
     "syncEnableTooltip": "Enable sync",
     "syncDisableTooltip": "Disable sync",
     "loadGroupsFailed": "Failed to load extension groups",
-    "assignGroupFailed": "Failed to assign extension group"
+    "assignGroupFailed": "Failed to assign extension group",
+    "management": {
+      "detail": {
+        "backToGroups": "Back to groups",
+        "editingGroupBreadcrumb": "Editing group"
+      }
+    }
+  },
+  "bulkAssign": {
+    "selectedProfilesLabel": "Selected profiles",
+    "moreProfiles": "and {{count}} more...",
+    "createNew": "New",
+    "newNamePlaceholder": "Name",
+    "selectPlaceholder": "Select an option",
+    "mixedSelection": "Selected profiles have different current values. Choose a value to apply to all.",
+    "applyToAll": "Apply to all selected"
   },
   "pro": {
     "badge": "PRO",
@@ -1215,7 +1256,14 @@
     "domains": "domains",
     "fresh": "Fresh",
     "stale": "Stale",
-    "notCached": "Not cached"
+    "notCached": "Not cached",
+    "tiers": {
+      "none": "No blocking",
+      "light": "Light blocking",
+      "standard": "Standard blocking",
+      "strict": "Strict blocking",
+      "maximum": "Maximum blocking"
+    }
   },
   "vpns": {
     "form": {
@@ -1465,7 +1513,9 @@
     "acceptButton": "I Accept",
     "acceptSuccess": "Terms accepted successfully",
     "acceptFailed": "Failed to accept terms",
-    "tryAgain": "Please try again"
+    "tryAgain": "Please try again",
+    "declineButton": "Decline",
+    "declined": "Wayfern terms declined. Wayfern features will be disabled."
   },
   "commercialTrial": {
     "title": "Commercial Trial Expired",
@@ -1576,8 +1626,11 @@
     "addTagsPlaceholder": "Add tags",
     "tagsHeader": "Tags",
     "noteHeader": "Note",
+    "syncHeader": "Sync",
     "vpnsHeading": "VPNs",
-    "createByCountryHeading": "Create by country"
+    "createByCountryHeading": "Create by country",
+    "tagsUpdateFailed": "Failed to update profile tags",
+    "countriesLoadFailed": "Failed to load countries"
   },
   "releaseTypeSelector": {
     "noReleaseTypes": "No release types available.",
@@ -1602,7 +1655,9 @@
       "viewRelease": "View Release",
       "later": "Later",
       "uploading": "Uploading",
-      "downloading": "Downloading"
+      "downloading": "Downloading",
+      "autoUpdateStarted": "{{browser}} update started",
+      "autoUpdateDescription": "Automatically downloading {{browser}} {{version}}. Progress will be shown in download notifications."
     }
   },
   "browserDownload": {
@@ -1703,5 +1758,32 @@
     "installSuccess": "Gateway installed successfully",
     "installError": "Failed to install gateway",
     "runningCount": "{{count}} instances running"
+  },
+  "home": {
+    "deprecation": {
+      "title": "Browser support ending soon",
+      "description": "Support for the following profiles will be removed on {{date}}: {{profiles}}. Please migrate to Wayfern or Camoufox profiles.",
+      "learnMore": "Learn more"
+    }
+  },
+  "updates": {
+    "notifications": {
+      "updateStarted": "{{browser}} update started",
+      "updateStartedDescription": "Version {{version}} download will begin shortly. Browser launch is disabled until update completes.",
+      "alreadyAvailable": "{{browser}} {{version}} already available",
+      "updatingProfileConfigs": "Updating profile configurations...",
+      "startingDownload": "Starting {{browser}} {{version}} download",
+      "downloadStartingDescription": "Download progress will be shown below...",
+      "updateCompleted": "{{browser}} update completed",
+      "singleProfileUpdated": "Profile \"{{name}}\" has been updated to version {{version}}. You can now launch your browsers with the latest version.",
+      "multipleProfilesUpdated": "{{count}} profiles have been updated to version {{version}}. You can now launch your browsers with the latest version.",
+      "versionAvailable": "Version {{version}} is now available. Running profiles will use the new version when restarted."
+    }
+  },
+  "downloads": {
+    "geoip": {
+      "title": "Downloading GeoIP database",
+      "completed": "GeoIP database downloaded successfully!"
+    }
   }
 }

@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { LoadingButton } from "@/components/loading-button";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -13,6 +14,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
+
+export const WAYFERN_TERMS_DECLINED_KEY = "wayfern_terms_declined";
 
 interface WayfernTermsDialogProps {
   isOpen: boolean;
@@ -30,6 +33,12 @@ export function WayfernTermsDialog({
     setIsAccepting(true);
     try {
       await invoke("accept_wayfern_terms");
+      // Clear any prior decline marker
+      try {
+        window.localStorage.removeItem(WAYFERN_TERMS_DECLINED_KEY);
+      } catch {
+        // ignore storage errors
+      }
       showSuccessToast(t("wayfernTerms.acceptSuccess"));
       onAccepted();
     } catch (error) {
@@ -41,6 +50,19 @@ export function WayfernTermsDialog({
     } finally {
       setIsAccepting(false);
     }
+  }, [onAccepted, t]);
+
+  const handleDecline = useCallback(() => {
+    // TODO: replace with a `decline_wayfern_terms` Tauri command once the
+    // backend exposes one. For now we persist the decision client-side so the
+    // dialog does not re-open every launch.
+    try {
+      window.localStorage.setItem(WAYFERN_TERMS_DECLINED_KEY, "true");
+    } catch {
+      // ignore storage errors
+    }
+    showSuccessToast(t("wayfernTerms.declined"));
+    onAccepted();
   }, [onAccepted, t]);
 
   return (
@@ -79,7 +101,14 @@ export function WayfernTermsDialog({
           </p>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="gap-2 sm:gap-2">
+          <Button
+            variant="outline"
+            onClick={handleDecline}
+            disabled={isAccepting}
+          >
+            {t("wayfernTerms.declineButton")}
+          </Button>
           <LoadingButton onClick={handleAccept} isLoading={isAccepting}>
             {t("wayfernTerms.acceptButton")}
           </LoadingButton>

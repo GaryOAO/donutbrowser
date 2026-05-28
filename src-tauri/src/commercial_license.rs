@@ -70,21 +70,6 @@ impl CommercialLicenseManager {
     Ok(now)
   }
 
-  pub async fn acknowledge_expiration(&self, _app_handle: &AppHandle) -> Result<(), String> {
-    let settings_manager = SettingsManager::instance();
-    let mut settings = settings_manager
-      .load_settings()
-      .map_err(|e| format!("Failed to load settings: {e}"))?;
-
-    settings.commercial_trial_acknowledged = true;
-    settings_manager
-      .save_settings(&settings)
-      .map_err(|e| format!("Failed to save settings: {e}"))?;
-
-    log::info!("Commercial trial expiration acknowledged");
-    Ok(())
-  }
-
   pub fn has_acknowledged(&self, _app_handle: &AppHandle) -> Result<bool, String> {
     let settings_manager = SettingsManager::instance();
     let settings = settings_manager

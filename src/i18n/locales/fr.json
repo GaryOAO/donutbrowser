@@ -285,7 +285,9 @@
       "profile": "Profile",
       "result": "Result",
       "time": "Time",
-      "runFailed": "Bulk task failed"
+      "runFailed": "Bulk task failed",
+      "cancel": "Cancel",
+      "progress": "{{completed}} of {{total}} complete"
     }
   },
   "createProfile": {
@@ -337,14 +339,33 @@
       "downloading": "Téléchargement de la version de {{browser}} ({{version}})...",
       "latestNeedsDownload": "La dernière version ({{version}}) doit être téléchargée",
       "latestAvailable": "La dernière version ({{version}}) est disponible",
-      "latestDownloading": "Téléchargement de la version ({{version}})..."
+      "latestDownloading": "Téléchargement de la version ({{version}})...",
+      "preparing": "Le binaire du navigateur (version {{version}}) sera préparé au premier lancement."
     },
     "chromiumLabel": "Chromium",
     "chromiumSubtitle": "Propulsé par Wayfern",
     "firefoxLabel": "Firefox",
     "firefoxSubtitle": "Propulsé par Camoufox",
     "camoufoxWarning": "Firefox (Camoufox) est maintenu par une organisation tierce. Pour une utilisation en production, veuillez utiliser Chromium.",
-    "platformUnavailable": "{{browser}} n'est pas encore disponible sur votre plateforme."
+    "platformUnavailable": "{{browser}} n'est pas encore disponible sur votre plateforme.",
+    "browserLabel": "Navigateur",
+    "networkSource": {
+      "title": "Source réseau",
+      "description": "Trafic sortant de ce profil. Choisissez un proxy enregistré, un VPN ou un nœud d'abonnement.",
+      "none": "Aucune (connexion directe)",
+      "storedProxies": "Proxies enregistrés",
+      "vpns": "VPN",
+      "subscriptionHeading": "Abonnement : {{name}}",
+      "createNewProxy": "Créer un nouveau proxy...",
+      "search": "Rechercher des proxies, VPN ou nœuds...",
+      "notFound": "Aucune source correspondante."
+    },
+    "advanced": {
+      "show": "Options avancées",
+      "hide": "Masquer les options avancées",
+      "fingerprint": "Empreinte"
+    },
+    "suggestedName": "Profil {{counter}}"
   },
   "deleteDialog": {
     "title": "Supprimer le profil",
@@ -627,7 +648,8 @@
     "toast": {
       "profileSynced": "Profil '{{name}}' synchronisé avec succès",
       "profileSyncFailed": "Échec de la synchronisation du profil '{{name}}'",
-      "profileSyncFailedWithError": "Échec de la synchronisation du profil '{{name}}' : {{error}}"
+      "profileSyncFailedWithError": "Échec de la synchronisation du profil '{{name}}' : {{error}}",
+      "syncingProfile": "Synchronisation du profil '{{name}}'..."
     }
   },
   "integrations": {
@@ -873,7 +895,9 @@
       "exportSuccess": "{{count}} éléments exportés avec succès",
       "syncSuccess": "Synchronisation terminée avec succès",
       "profileSynced": "Profil '{{name}}' synchronisé avec succès",
-      "cacheCleared": "Cache effacé avec succès"
+      "cacheCleared": "Cache effacé avec succès",
+      "profilesAutoUpgraded": "{{count}} profil(s) mis à jour automatiquement vers la dernière version : {{names}}",
+      "bgBrowserDownloadCompleted": "{{browser}} {{version}} téléchargé"
     },
     "error": {
       "profileCreateFailed": "Échec de la création du profil",
@@ -903,7 +927,8 @@
       "syncing": "Synchronisation...",
       "syncingProfile": "Synchronisation du profil '{{name}}'...",
       "syncingProfileWithProgress": "{{count}} fichiers ({{size}})",
-      "updatingVersions": "Mise à jour des versions de navigateurs..."
+      "updatingVersions": "Mise à jour des versions de navigateurs...",
+      "bgBrowserDownload": "Téléchargement de {{browser}} {{version}} en arrière-plan..."
     }
   },
   "errors": {
@@ -1048,7 +1073,8 @@
     "refreshFingerprint": "Actualiser l'empreinte",
     "canvasNoiseSeedPlaceholder": "Entrez une graine pour l'empreinte canvas",
     "addFontsPlaceholder": "Ajouter des polices...",
-    "enterAsJson": "Entrez {{title}} en JSON"
+    "enterAsJson": "Entrez {{title}} en JSON",
+    "userAgentPlaceholder": "Mozilla/5.0..."
   },
   "warnings": {
     "windowResizeTitle": "Dimensions de fenêtre personnalisées",
@@ -1190,7 +1216,13 @@
     "syncEnableTooltip": "Activer la synchronisation",
     "syncDisableTooltip": "Désactiver la synchronisation",
     "loadGroupsFailed": "Échec du chargement des groupes d'extensions",
-    "assignGroupFailed": "Échec de l'attribution du groupe d'extensions"
+    "assignGroupFailed": "Échec de l'attribution du groupe d'extensions",
+    "management": {
+      "detail": {
+        "backToGroups": "Retour aux groupes",
+        "editingGroupBreadcrumb": "Modification du groupe"
+      }
+    }
   },
   "pro": {
     "badge": "PRO",
@@ -1215,7 +1247,14 @@
     "domains": "domaines",
     "fresh": "À jour",
     "stale": "Obsolète",
-    "notCached": "Non mis en cache"
+    "notCached": "Non mis en cache",
+    "tiers": {
+      "none": "Aucun blocage",
+      "light": "Blocage léger",
+      "standard": "Blocage standard",
+      "strict": "Blocage strict",
+      "maximum": "Blocage maximum"
+    }
   },
   "vpns": {
     "form": {
@@ -1465,7 +1504,9 @@
     "acceptButton": "J'accepte",
     "acceptSuccess": "Conditions acceptées avec succès",
     "acceptFailed": "Échec de l'acceptation des conditions",
-    "tryAgain": "Veuillez réessayer"
+    "tryAgain": "Veuillez réessayer",
+    "declineButton": "Refuser",
+    "declined": "Conditions Wayfern refusées. Les fonctionnalités Wayfern seront désactivées."
   },
   "commercialTrial": {
     "title": "Période d'essai commerciale expirée",
@@ -1576,8 +1617,11 @@
     "addTagsPlaceholder": "Ajouter des étiquettes",
     "tagsHeader": "Étiquettes",
     "noteHeader": "Note",
+    "syncHeader": "Sync",
     "vpnsHeading": "VPN",
-    "createByCountryHeading": "Créer par pays"
+    "createByCountryHeading": "Créer par pays",
+    "tagsUpdateFailed": "Échec de la mise à jour des étiquettes du profil",
+    "countriesLoadFailed": "Échec du chargement des pays"
   },
   "releaseTypeSelector": {
     "noReleaseTypes": "Aucun type de version disponible.",
@@ -1602,7 +1646,9 @@
       "viewRelease": "Voir la version",
       "later": "Plus tard",
       "uploading": "Envoi",
-      "downloading": "Téléchargement"
+      "downloading": "Téléchargement",
+      "autoUpdateStarted": "Mise à jour de {{browser}} démarrée",
+      "autoUpdateDescription": "Téléchargement automatique de {{browser}} {{version}}. La progression sera affichée dans les notifications de téléchargement."
     }
   },
   "browserDownload": {
@@ -1703,5 +1749,41 @@
     "installSuccess": "Passerelle installée avec succès",
     "installError": "Échec de l'installation de la passerelle",
     "runningCount": "{{count}} instances en cours d'exécution"
+  },
+  "home": {
+    "deprecation": {
+      "title": "La prise en charge du navigateur prendra bientôt fin",
+      "description": "La prise en charge des profils suivants sera supprimée le {{date}} : {{profiles}}. Veuillez migrer vers des profils Wayfern ou Camoufox.",
+      "learnMore": "En savoir plus"
+    }
+  },
+  "updates": {
+    "notifications": {
+      "updateStarted": "Mise à jour de {{browser}} démarrée",
+      "updateStartedDescription": "Le téléchargement de la version {{version}} commencera sous peu. Le lancement du navigateur est désactivé jusqu'à la fin de la mise à jour.",
+      "alreadyAvailable": "{{browser}} {{version}} déjà disponible",
+      "updatingProfileConfigs": "Mise à jour des configurations de profil...",
+      "startingDownload": "Démarrage du téléchargement de {{browser}} {{version}}",
+      "downloadStartingDescription": "La progression du téléchargement sera affichée ci-dessous...",
+      "updateCompleted": "Mise à jour de {{browser}} terminée",
+      "singleProfileUpdated": "Le profil « {{name}} » a été mis à jour vers la version {{version}}. Vous pouvez maintenant lancer vos navigateurs avec la dernière version.",
+      "multipleProfilesUpdated": "{{count}} profils ont été mis à jour vers la version {{version}}. Vous pouvez maintenant lancer vos navigateurs avec la dernière version.",
+      "versionAvailable": "La version {{version}} est maintenant disponible. Les profils en cours utiliseront la nouvelle version au redémarrage."
+    }
+  },
+  "downloads": {
+    "geoip": {
+      "title": "Téléchargement de la base de données GeoIP",
+      "completed": "Base de données GeoIP téléchargée avec succès !"
+    }
+  },
+  "bulkAssign": {
+    "selectedProfilesLabel": "Profils sélectionnés",
+    "moreProfiles": "et {{count}} de plus...",
+    "createNew": "Nouveau",
+    "newNamePlaceholder": "Nom",
+    "selectPlaceholder": "Sélectionnez une option",
+    "mixedSelection": "Les profils sélectionnés ont des valeurs actuelles différentes. Choisissez une valeur à appliquer à tous.",
+    "applyToAll": "Appliquer à tous les sélectionnés"
   }
 }

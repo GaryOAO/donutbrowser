@@ -10,7 +10,10 @@ use crate::proxy_manager::PROXY_MANAGER;
 use crate::wayfern_manager::{WayfernConfig, WayfernManager};
 use futures_util::stream::{self, StreamExt};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use sysinfo::System;
 
@@ -48,6 +51,37 @@ pub struct BulkBrowserTaskRequest {
   pub action: BulkBrowserTaskAction,
   pub proxy_id: Option<String>,
   pub max_concurrency: Option<usize>,
+  /// Optional client-provided task id used to cancel an in-flight bulk run via
+  /// `cancel_bulk_browser_task`. When omitted, the task cannot be cancelled.
+  pub task_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BulkTaskProgressPayload {
+  pub task_id: String,
+  pub completed_count: usize,
+  pub total_count: usize,
+  pub last_result: BulkTaskItemResult,
+  pub cancelled: bool,
+}
+
+lazy_static::lazy_static! {
+  static ref BULK_TASK_CANCEL: Mutex<HashMap<String, Arc<AtomicBool>>> = Mutex::new(HashMap::new());
+}
+
+fn register_bulk_task(task_id: &str) -> Arc<AtomicBool> {
+  let flag = Arc::new(AtomicBool::new(false));
+  if let Ok(mut map) = BULK_TASK_CANCEL.lock() {
+    map.insert(task_id.to_string(), Arc::clone(&flag));
+  }
+  flag
+}
+
+fn unregister_bulk_task(task_id: &str) {
+  if let Ok(mut map) = BULK_TASK_CANCEL.lock() {
+    map.remove(task_id);
+  }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -92,7 +126,7 @@ impl BrowserRunner {
 
   /// Resolve the DNS blocklist level to a cached file path.
   /// If a level is set but the cache is missing, fetches on demand (blocks until done).
-  async fn resolve_blocklist_file(
+  pub async fn resolve_blocklist_file(
     profile: &crate::profile::BrowserProfile,
   ) -> Result<Option<String>, String> {
     let Some(ref level_str) = profile.dns_blocklist else {
@@ -154,7 +188,7 @@ impl BrowserRunner {
       .await
   }
 
-  async fn resolve_launch_proxy(
+  pub async fn resolve_launch_proxy(
     &self,
     profile: &BrowserProfile,
   ) -> Result<Option<ProxySettings>, String> {
@@ -379,11 +413,11 @@ impl BrowserRunner {
       let profile_id_str = profile.id.to_string();
       let blocklist_file = Self::resolve_blocklist_file(profile).await?;
       let proxy_start_at = operation_start();
-      let local_proxy = PROXY_MANAGER
+      let (local_proxy, proxy_key) = PROXY_MANAGER
         .start_proxy(
           app_handle.clone(),
           upstream_proxy.as_ref(),
-          0, // Use 0 as temporary PID, will be updated later
+          0, // Sentinel — start_proxy allocates a unique Pending token.
           Some(&profile_id_str),
           profile.proxy_bypass_rules.clone(),
           blocklist_file,
@@ -536,11 +570,11 @@ impl BrowserRunner {
       updated_profile.process_id = Some(process_id);
       updated_profile.last_launch = Some(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs());
 
-      // Update the proxy manager with the correct PID
-      if let Err(e) = PROXY_MANAGER.update_proxy_pid(0, process_id) {
-        log::warn!("Warning: Failed to update proxy PID mapping: {e}");
+      // Promote the Pending placeholder allocated above to the real browser PID.
+      if let Err(e) = PROXY_MANAGER.promote_pending_to_browser(&proxy_key, process_id) {
+        log::warn!("Warning: Failed to promote proxy key mapping: {e}");
       } else {
-        log::info!("Updated proxy PID mapping from temp (0) to actual PID: {process_id}");
+        log::info!("Promoted proxy entry {proxy_key:?} → browser PID {process_id}");
       }
 
       // Save the updated profile (includes new fingerprint if randomize is enabled)
@@ -659,11 +693,11 @@ impl BrowserRunner {
       let profile_id_str = profile.id.to_string();
       let blocklist_file = Self::resolve_blocklist_file(profile).await?;
       let proxy_start_at = operation_start();
-      let local_proxy = PROXY_MANAGER
+      let (local_proxy, proxy_key) = PROXY_MANAGER
         .start_proxy(
           app_handle.clone(),
           upstream_proxy.as_ref(),
-          0, // Use 0 as temporary PID, will be updated later
+          0, // Sentinel — start_proxy allocates a unique Pending token.
           Some(&profile_id_str),
           profile.proxy_bypass_rules.clone(),
           blocklist_file,
@@ -813,11 +847,11 @@ impl BrowserRunner {
       updated_profile.process_id = Some(process_id);
       updated_profile.last_launch = Some(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs());
 
-      // Update the proxy manager with the correct PID
-      if let Err(e) = PROXY_MANAGER.update_proxy_pid(0, process_id) {
-        log::warn!("Warning: Failed to update proxy PID mapping: {e}");
+      // Promote the Pending placeholder allocated above to the real browser PID.
+      if let Err(e) = PROXY_MANAGER.promote_pending_to_browser(&proxy_key, process_id) {
+        log::warn!("Warning: Failed to promote proxy key mapping: {e}");
       } else {
-        log::info!("Updated proxy PID mapping from temp (0) to actual PID: {process_id}");
+        log::info!("Promoted proxy entry {proxy_key:?} → browser PID {process_id}");
       }
 
       // Save the updated profile
@@ -996,19 +1030,18 @@ impl BrowserRunner {
       .await
       .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.into() })?;
 
-    // Use a temporary PID (1) to start the proxy, we'll update it after browser launch
-    let temp_pid = 1u32;
+    // Sentinel — start_proxy allocates a unique Pending token per call.
     let profile_id_str = profile.id.to_string();
 
     // Start local proxy - if this fails, DO NOT launch browser
     let blocklist_file = Self::resolve_blocklist_file(profile)
       .await
       .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.into() })?;
-    let internal_proxy = PROXY_MANAGER
+    let (internal_proxy, proxy_key) = PROXY_MANAGER
       .start_proxy(
         app_handle.clone(),
         upstream_proxy.as_ref(),
-        temp_pid,
+        1u32,
         Some(&profile_id_str),
         profile.proxy_bypass_rules.clone(),
         blocklist_file,
@@ -1033,10 +1066,10 @@ impl BrowserRunner {
       )
       .await;
 
-    // Update proxy with correct PID if launch succeeded
+    // Promote pending proxy entry to the real browser PID if launch succeeded.
     if let Ok(ref updated_profile) = result {
       if let Some(actual_pid) = updated_profile.process_id {
-        let _ = PROXY_MANAGER.update_proxy_pid(temp_pid, actual_pid);
+        let _ = PROXY_MANAGER.promote_pending_to_browser(&proxy_key, actual_pid);
       }
     }
 
@@ -2462,6 +2495,20 @@ pub async fn launch_browser_profile(
     ));
   }
 
+  // Pre-flight: the binary may have been deleted from disk (manual cleanup,
+  // failed migration, etc.). Without this check, spawn fails with the
+  // platform's raw "No such file or directory" / "ERROR_FILE_NOT_FOUND"
+  // and the UI shows a generic "Failed to launch browser" message that
+  // doesn't tell the user the fix is to re-download.
+  if !crate::downloaded_browsers_registry::DownloadedBrowsersRegistry::instance()
+    .is_browser_downloaded(&profile.browser, &profile.version)
+  {
+    return Err(format!(
+      "Browser binary missing for {} {}. Please re-download it from Settings.",
+      profile.browser, profile.version
+    ));
+  }
+
   // Team lock check: if profile is sync-enabled and user is on a team, acquire lock
   crate::team_lock::acquire_team_lock_if_needed(&profile).await?;
 
@@ -2478,6 +2525,10 @@ pub async fn launch_browser_profile(
 
   // Store the internal proxy settings for passing to launch_browser
   let mut internal_proxy_settings: Option<ProxySettings> = None;
+  // Track the pending proxy key allocated by start_proxy so we can promote
+  // it once the real browser PID is known. The camoufox/wayfern path has
+  // its own promotion call site; this one is for everything else.
+  let mut pending_proxy_key: Option<crate::proxy_manager::ActiveProxyKey> = None;
 
   // Resolve the most up-to-date profile from disk by ID to avoid using stale proxy_id/browser state
   let profile_for_launch = match browser_runner
@@ -2532,8 +2583,7 @@ pub async fn launch_browser_profile(
       }
     }
 
-    // Use a temporary PID (1) to start the proxy, we'll update it after browser launch
-    let temp_pid = 1u32;
+    // Sentinel — start_proxy allocates a unique Pending token per call.
     let profile_id_str = profile.id.to_string();
 
     // Always start a local proxy, even if there's no upstream proxy
@@ -2544,14 +2594,15 @@ pub async fn launch_browser_profile(
       .start_proxy(
         app_handle.clone(),
         upstream_proxy.as_ref(),
-        temp_pid,
+        1u32,
         Some(&profile_id_str),
         profile_for_launch.proxy_bypass_rules.clone(),
         blocklist_file,
       )
       .await
     {
-      Ok(internal_proxy) => {
+      Ok((internal_proxy, proxy_key)) => {
+        pending_proxy_key = Some(proxy_key);
         record_operation(
           Some(profile_for_launch.id.to_string()),
           profile_for_launch.proxy_id.clone(),
@@ -2675,10 +2726,11 @@ pub async fn launch_browser_profile(
     None,
   );
 
-  // Now update the proxy with the correct PID if we have one
-  if let Some(actual_pid) = updated_profile.process_id {
-    // Update the proxy manager with the correct PID (we always started with temp pid 1 for non-Camoufox)
-    let _ = PROXY_MANAGER.update_proxy_pid(1u32, actual_pid);
+  // Promote the Pending placeholder allocated above to the real browser PID.
+  // Only runs for non-Camoufox/Wayfern browsers — those have their own promotion
+  // call site inside the per-browser launch path.
+  if let (Some(actual_pid), Some(key)) = (updated_profile.process_id, pending_proxy_key) {
+    let _ = PROXY_MANAGER.promote_pending_to_browser(&key, actual_pid);
   }
 
   Ok(updated_profile)
@@ -2846,6 +2898,11 @@ pub async fn run_bulk_browser_tasks(
   let concurrency = request.max_concurrency.unwrap_or(3).clamp(1, 8);
   let action = request.action;
   let proxy_id = request.proxy_id.clone();
+  let task_id = request.task_id.clone();
+  let cancel_flag = task_id.as_deref().map(register_bulk_task);
+
+  let total_count = request.profile_ids.len();
+  let completed_counter = Arc::new(std::sync::atomic::AtomicUsize::new(0));
 
   let targets = request
     .profile_ids
@@ -2859,25 +2916,76 @@ pub async fn run_bulk_browser_tasks(
   let mut indexed_results = stream::iter(targets.map(|(index, requested_id, profile)| {
     let app_handle = app_handle.clone();
     let proxy_id = proxy_id.clone();
+    let cancel_flag = cancel_flag.clone();
+    let task_id = task_id.clone();
+    let completed_counter = Arc::clone(&completed_counter);
     async move {
+      // If cancelled before this item starts, return a synthetic cancelled
+      // result without spawning the underlying browser operation. Already
+      // in-flight items (those past this check) are allowed to finish
+      // naturally — we never kill them.
+      let cancelled = cancel_flag
+        .as_ref()
+        .is_some_and(|flag| flag.load(Ordering::Relaxed));
+      if cancelled {
+        let timestamp = SystemTime::now()
+          .duration_since(UNIX_EPOCH)
+          .unwrap_or_default()
+          .as_secs();
+        let result = BulkTaskItemResult {
+          profile_id: requested_id,
+          success: false,
+          retries: 0,
+          error_code: Some("CANCELLED".to_string()),
+          error_message: Some("Cancelled before start".to_string()),
+          timestamp,
+          proxy_node: proxy_id.clone(),
+          log: "error_code=CANCELLED retries=0".to_string(),
+        };
+        let done = completed_counter.fetch_add(1, Ordering::SeqCst) + 1;
+        if let Some(tid) = task_id.as_ref() {
+          let payload = BulkTaskProgressPayload {
+            task_id: tid.clone(),
+            completed_count: done,
+            total_count,
+            last_result: result.clone(),
+            cancelled: true,
+          };
+          if let Err(e) = events::emit("bulk-task-progress", &payload) {
+            log::warn!("Failed to emit bulk-task-progress event: {e}");
+          }
+        }
+        return (index, result);
+      }
       let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
       let Some(profile) = profile else {
-        return (
-          index,
-          BulkTaskItemResult {
-            profile_id: requested_id,
-            success: false,
-            retries: 0,
-            error_code: Some("PROFILE_NOT_FOUND".to_string()),
-            error_message: Some("Profile not found".to_string()),
-            timestamp,
-            proxy_node: proxy_id,
-            log: "error_code=PROFILE_NOT_FOUND retries=0".to_string(),
-          },
-        );
+        let result = BulkTaskItemResult {
+          profile_id: requested_id,
+          success: false,
+          retries: 0,
+          error_code: Some("PROFILE_NOT_FOUND".to_string()),
+          error_message: Some("Profile not found".to_string()),
+          timestamp,
+          proxy_node: proxy_id.clone(),
+          log: "error_code=PROFILE_NOT_FOUND retries=0".to_string(),
+        };
+        let done = completed_counter.fetch_add(1, Ordering::SeqCst) + 1;
+        if let Some(tid) = task_id.as_ref() {
+          let payload = BulkTaskProgressPayload {
+            task_id: tid.clone(),
+            completed_count: done,
+            total_count,
+            last_result: result.clone(),
+            cancelled: false,
+          };
+          if let Err(e) = events::emit("bulk-task-progress", &payload) {
+            log::warn!("Failed to emit bulk-task-progress event: {e}");
+          }
+        }
+        return (index, result);
       };
 
       let profile_id = profile.id.to_string();
@@ -2950,24 +3058,44 @@ pub async fn run_bulk_browser_tasks(
         error_message.clone(),
       );
 
-      (
-        index,
-        BulkTaskItemResult {
-          profile_id,
-          success,
-          retries,
-          error_code,
-          error_message,
-          timestamp,
-          proxy_node,
-          log,
-        },
-      )
+      let result = BulkTaskItemResult {
+        profile_id,
+        success,
+        retries,
+        error_code,
+        error_message,
+        timestamp,
+        proxy_node,
+        log,
+      };
+
+      let done = completed_counter.fetch_add(1, Ordering::SeqCst) + 1;
+      if let Some(tid) = task_id.as_ref() {
+        let cancelled_now = cancel_flag
+          .as_ref()
+          .is_some_and(|flag| flag.load(Ordering::Relaxed));
+        let payload = BulkTaskProgressPayload {
+          task_id: tid.clone(),
+          completed_count: done,
+          total_count,
+          last_result: result.clone(),
+          cancelled: cancelled_now,
+        };
+        if let Err(e) = events::emit("bulk-task-progress", &payload) {
+          log::warn!("Failed to emit bulk-task-progress event: {e}");
+        }
+      }
+
+      (index, result)
     }
   }))
   .buffer_unordered(concurrency)
   .collect::<Vec<_>>()
   .await;
+
+  if let Some(tid) = task_id.as_deref() {
+    unregister_bulk_task(tid);
+  }
 
   indexed_results.sort_by_key(|(index, _)| *index);
   let results = indexed_results
@@ -2976,6 +3104,16 @@ pub async fn run_bulk_browser_tasks(
     .collect();
 
   Ok(results)
+}
+
+#[tauri::command]
+pub fn cancel_bulk_browser_task(task_id: String) -> Result<(), String> {
+  if let Ok(map) = BULK_TASK_CANCEL.lock() {
+    if let Some(flag) = map.get(&task_id) {
+      flag.store(true, Ordering::Relaxed);
+    }
+  }
+  Ok(())
 }
 
 // Global singleton instance
