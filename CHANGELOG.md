@@ -1,6 +1,61 @@
 # Changelog
 
 
+## v0.22.8 (2026-05-28)
+
+### Features
+
+- unify proxy picker across all entry points
+- auto-start/stop mihomo gateway for subscription nodes
+- add needs_gateway and is_usable methods to PoolNode
+- three-state node display with gateway required badge
+- unified proxy source frontend (Agent #4)
+- mihomo gateway manager (Agent #2)
+- batch proxy management (Agent #1)
+- unified proxy source backend (Agent #3)
+- remove pro restrictions, add subscription pool and unified proxy source
+- add queued bulk browser tasks with frontend progress (#7)
+- add structured operation logs and UI viewer (#6)
+- add clash proxy pool bindings to profile flow (#4)
+- add health-aware profile proxy binding
+- add Clash backend control commands
+
+### Bug Fixes
+
+- keep update_profile_proxy as legacy-only command
+- harden mihomo gateway lifecycle and yaml safety
+- clarify gateway badge wording and import-all toast
+- detect only app-bundled mihomo, not system PATH
+- remove duplicate mod and command declarations from merge
+
+### Refactoring
+
+- simplify subscription tab and contextualize gateway banner
+
+### Documentation
+
+- update README with new features and fork repo references
+- add roxy parity PR plan (#8)
+- add Roxy parity assessment
+
+### Maintenance
+
+- ci: skip macOS notarization when no Apple credentials are present
+- ci: fall back to ad-hoc signing when no Apple identity is set
+- ci: skip Apple certificate import when secrets are absent
+- ci: switch rolling release to manual trigger only
+- ci: add workflow_dispatch trigger to rolling release
+- chore: make frontend builds work offline
+- test: add proxy resilience and batch acceptance coverage
+- chore: cleanup issue validation
+- chore: update flake.nix for v0.22.7 [skip ci] (#341)
+
+### Other
+
+- release: v0.22.8 — UX/perf/security/correctness hardening
+- deps(rust)(deps): bump openssl from 0.10.78 to 0.10.79 in /src-tauri
+
+
 ## v0.22.8 (2026-05-29)
 
 > Fork-specific release (GaryOAO/donutbrowser). Comprehensive UX, performance,
