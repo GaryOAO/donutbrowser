@@ -3,6 +3,19 @@
 
 ## v0.23.0 (2026-05-29)
 
+### Features
+
+- password-protected profiles
+- add keyboard shortcuts and command palette
+- support latest Camoufox via real-fingerprint presets
+
+### Other
+
+- release: v0.23.0 — port Camoufox presets, shortcuts/command palette, password-protected profiles
+
+
+## v0.23.0 (2026-05-29)
+
 > Fork-specific release (GaryOAO/donutbrowser). Ports three useful upstream
 > capabilities into the fork without disturbing existing custom functionality,
 > and fixes the auto-updater so it no longer offers (and overwrites with) the
