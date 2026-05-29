@@ -1785,5 +1785,35 @@
     "selectPlaceholder": "Selecione uma opção",
     "mixedSelection": "Os perfis selecionados têm valores atuais diferentes. Escolha um valor para aplicar a todos.",
     "applyToAll": "Aplicar a todos os selecionados"
+  },
+  "shortcuts": {
+    "openPalette": "Abrir paleta de comandos",
+    "openShortcuts": "Mostrar atalhos de teclado",
+    "importProfile": "Importar perfil",
+    "goProfiles": "Ir para perfis",
+    "goProxies": "Gerenciar proxies",
+    "goExtensions": "Gerenciar extensões",
+    "goGroups": "Gerenciar grupos",
+    "goIntegrations": "Abrir integrações",
+    "goSettings": "Abrir configurações"
+  },
+  "shortcutsDialog": {
+    "title": "Atalhos de teclado",
+    "description": "Navegue e aja rapidamente sem sair do teclado."
+  },
+  "commandPalette": {
+    "placeholder": "Digite um comando ou pesquise...",
+    "empty": "Nenhum resultado encontrado.",
+    "groups": {
+      "navigation": "Navegação",
+      "actions": "Ações",
+      "profileGroups": "Grupos de perfis",
+      "profiles": "Perfis"
+    },
+    "actions": {
+      "launchProfile": "Iniciar {{name}}",
+      "stopProfile": "Parar {{name}}"
+    },
+    "open": "Abrir paleta de comandos"
   }
 }

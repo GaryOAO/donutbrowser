@@ -6,6 +6,7 @@ import { GoGear, GoKebabHorizontal, GoPlus } from "react-icons/go";
 import {
   LuClipboardList,
   LuCloud,
+  LuKeyboard,
   LuPlug,
   LuPuzzle,
   LuSearch,
@@ -177,6 +178,7 @@ interface Props {
   onIntegrationsDialogOpen: (open: boolean) => void;
   onExtensionManagementDialogOpen: (open: boolean) => void;
   onOperationLogsDialogOpen: (open: boolean) => void;
+  onCommandPaletteOpen: () => void;
   searchQuery: string;
   onSearchQueryChange: (query: string) => void;
 }
@@ -191,6 +193,7 @@ const HomeHeader = ({
   onIntegrationsDialogOpen,
   onExtensionManagementDialogOpen,
   onOperationLogsDialogOpen,
+  onCommandPaletteOpen,
   searchQuery,
   onSearchQueryChange,
 }: Props) => {
@@ -266,6 +269,22 @@ const HomeHeader = ({
             </button>
           )}
         </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onCommandPaletteOpen}
+                className="flex gap-2 items-center h-[36px] border-foreground/20 hover:text-foreground"
+                aria-label={t("commandPalette.open")}
+              >
+                <LuKeyboard className="w-4 h-4" />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>{t("commandPalette.open")}</TooltipContent>
+        </Tooltip>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <span>

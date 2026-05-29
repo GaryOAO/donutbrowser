@@ -1785,5 +1785,35 @@
     "selectPlaceholder": "オプションを選択",
     "mixedSelection": "選択したプロファイルの現在値が異なります。すべてに適用する値を選択してください。",
     "applyToAll": "選択したすべてに適用"
+  },
+  "shortcuts": {
+    "openPalette": "コマンドパレットを開く",
+    "openShortcuts": "キーボードショートカットを表示",
+    "importProfile": "プロファイルをインポート",
+    "goProfiles": "プロファイルへ移動",
+    "goProxies": "プロキシを管理",
+    "goExtensions": "拡張機能を管理",
+    "goGroups": "グループを管理",
+    "goIntegrations": "連携を開く",
+    "goSettings": "設定を開く"
+  },
+  "shortcutsDialog": {
+    "title": "キーボードショートカット",
+    "description": "キーボードから離れずにすばやく操作できます。"
+  },
+  "commandPalette": {
+    "placeholder": "コマンドを入力するか検索...",
+    "empty": "結果が見つかりません。",
+    "groups": {
+      "navigation": "ナビゲーション",
+      "actions": "アクション",
+      "profileGroups": "プロファイルグループ",
+      "profiles": "プロファイル"
+    },
+    "actions": {
+      "launchProfile": "{{name}} を起動",
+      "stopProfile": "{{name}} を停止"
+    },
+    "open": "コマンドパレットを開く"
   }
 }

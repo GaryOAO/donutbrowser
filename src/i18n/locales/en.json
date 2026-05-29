@@ -1785,5 +1785,35 @@
       "title": "Downloading GeoIP database",
       "completed": "GeoIP database downloaded successfully!"
     }
+  },
+  "shortcuts": {
+    "openPalette": "Open command palette",
+    "openShortcuts": "Show keyboard shortcuts",
+    "importProfile": "Import profile",
+    "goProfiles": "Go to profiles",
+    "goProxies": "Manage proxies",
+    "goExtensions": "Manage extensions",
+    "goGroups": "Manage groups",
+    "goIntegrations": "Open integrations",
+    "goSettings": "Open settings"
+  },
+  "shortcutsDialog": {
+    "title": "Keyboard shortcuts",
+    "description": "Quickly navigate and act without leaving the keyboard."
+  },
+  "commandPalette": {
+    "placeholder": "Type a command or search...",
+    "empty": "No results found.",
+    "groups": {
+      "navigation": "Navigation",
+      "actions": "Actions",
+      "profileGroups": "Profile groups",
+      "profiles": "Profiles"
+    },
+    "actions": {
+      "launchProfile": "Launch {{name}}",
+      "stopProfile": "Stop {{name}}"
+    },
+    "open": "Open command palette"
   }
 }
