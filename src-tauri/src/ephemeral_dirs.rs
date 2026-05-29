@@ -240,7 +240,7 @@ fn cleanup_legacy_dirs() {
 }
 
 pub fn get_effective_profile_path(profile: &BrowserProfile, profiles_dir: &Path) -> PathBuf {
-  if profile.ephemeral {
+  if profile.ephemeral || profile.password_protected {
     if let Some(dir) = get_ephemeral_dir(&profile.id.to_string()) {
       return dir;
     }
@@ -282,6 +282,8 @@ mod tests {
       created_by_email: None,
       dns_blocklist: None,
       deleted_at: None,
+      password_protected: false,
+      created_at: None,
     }
   }
 

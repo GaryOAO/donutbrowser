@@ -80,6 +80,8 @@ pub struct AppSettings {
   pub proxy_backend: ProxyBackend,
   #[serde(default)]
   pub clash_backend: ClashBackendSettings,
+  #[serde(default)]
+  pub keep_decrypted_profiles_in_ram: bool, // Keep decrypted password-protected profiles in RAM between launches
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -117,6 +119,7 @@ impl Default for AppSettings {
       disable_auto_updates: false,
       proxy_backend: ProxyBackend::Local,
       clash_backend: ClashBackendSettings::default(),
+      keep_decrypted_profiles_in_ram: false,
     }
   }
 }
@@ -1097,6 +1100,7 @@ mod tests {
       disable_auto_updates: false,
       proxy_backend: ProxyBackend::Local,
       clash_backend: ClashBackendSettings::default(),
+      keep_decrypted_profiles_in_ram: false,
     };
 
     let save_result = manager.save_settings(&test_settings);

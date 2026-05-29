@@ -36,6 +36,10 @@ import {
   ProfileInfoDialog,
   ProfileLaunchHookDialog,
 } from "@/components/profile-info-dialog";
+import {
+  type PasswordDialogMode,
+  ProfilePasswordDialog,
+} from "@/components/profile-password-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1018,6 +1022,10 @@ export function ProfilesDataTable({
     React.useState<BrowserProfile | null>(null);
   const [launchHookProfile, setLaunchHookProfile] =
     React.useState<BrowserProfile | null>(null);
+  const [passwordDialogProfile, setPasswordDialogProfile] =
+    React.useState<BrowserProfile | null>(null);
+  const [passwordDialogMode, setPasswordDialogMode] =
+    React.useState<PasswordDialogMode>("set");
   const [launchingProfiles, setLaunchingProfiles] = React.useState<Set<string>>(
     new Set(),
   );
@@ -2373,6 +2381,18 @@ export function ProfilesDataTable({
                   </TooltipContent>
                 </Tooltip>
               )}
+              {profile.password_protected && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <LuLock className="w-3 h-3 text-warning" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {meta.t("profiles.passwordProtectedBadge")}
+                  </TooltipContent>
+                </Tooltip>
+              )}
             </div>
           );
         },
@@ -3165,6 +3185,21 @@ export function ProfilesDataTable({
               }}
               onCloneProfile={onCloneProfile}
               onLaunchWithSync={onLaunchWithSync}
+              onSetPassword={(profile) => {
+                setProfileForInfoDialog(null);
+                setPasswordDialogMode("set");
+                setPasswordDialogProfile(profile);
+              }}
+              onChangePassword={(profile) => {
+                setProfileForInfoDialog(null);
+                setPasswordDialogMode("change");
+                setPasswordDialogProfile(profile);
+              }}
+              onRemovePassword={(profile) => {
+                setProfileForInfoDialog(null);
+                setPasswordDialogMode("remove");
+                setPasswordDialogProfile(profile);
+              }}
               onDeleteProfile={(profile) => {
                 setProfileForInfoDialog(null);
                 setProfileToDelete(profile);
@@ -3244,6 +3279,14 @@ export function ProfilesDataTable({
         }}
         profileId={bypassRulesProfile?.id ?? null}
         initialRules={bypassRulesProfile?.proxy_bypass_rules ?? []}
+      />
+      <ProfilePasswordDialog
+        isOpen={passwordDialogProfile !== null}
+        onClose={() => {
+          setPasswordDialogProfile(null);
+        }}
+        profile={passwordDialogProfile}
+        mode={passwordDialogMode}
       />
       <ProfileDnsBlocklistDialog
         isOpen={dnsBlocklistProfile !== null}
