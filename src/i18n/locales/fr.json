@@ -1785,5 +1785,35 @@
     "selectPlaceholder": "Sélectionnez une option",
     "mixedSelection": "Les profils sélectionnés ont des valeurs actuelles différentes. Choisissez une valeur à appliquer à tous.",
     "applyToAll": "Appliquer à tous les sélectionnés"
+  },
+  "shortcuts": {
+    "openPalette": "Ouvrir la palette de commandes",
+    "openShortcuts": "Afficher les raccourcis clavier",
+    "importProfile": "Importer un profil",
+    "goProfiles": "Aller aux profils",
+    "goProxies": "Gérer les proxys",
+    "goExtensions": "Gérer les extensions",
+    "goGroups": "Gérer les groupes",
+    "goIntegrations": "Ouvrir les intégrations",
+    "goSettings": "Ouvrir les paramètres"
+  },
+  "shortcutsDialog": {
+    "title": "Raccourcis clavier",
+    "description": "Naviguez et agissez rapidement sans quitter le clavier."
+  },
+  "commandPalette": {
+    "placeholder": "Tapez une commande ou recherchez...",
+    "empty": "Aucun résultat trouvé.",
+    "groups": {
+      "navigation": "Navigation",
+      "actions": "Actions",
+      "profileGroups": "Groupes de profils",
+      "profiles": "Profils"
+    },
+    "actions": {
+      "launchProfile": "Lancer {{name}}",
+      "stopProfile": "Arrêter {{name}}"
+    },
+    "open": "Ouvrir la palette de commandes"
   }
 }

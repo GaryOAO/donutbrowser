@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { LuActivity, LuPlay, LuSquare } from "react-icons/lu";
 import { CamoufoxConfigDialog } from "@/components/camoufox-config-dialog";
 import { CloneProfileDialog } from "@/components/clone-profile-dialog";
+import { CommandPalette } from "@/components/command-palette";
 import { CookieCopyDialog } from "@/components/cookie-copy-dialog";
 import { CookieManagementDialog } from "@/components/cookie-management-dialog";
 import { CreateProfileDialog } from "@/components/create-profile-dialog";
@@ -30,6 +31,7 @@ import { ProfileSyncDialog } from "@/components/profile-sync-dialog";
 import { ProxyAssignmentDialog } from "@/components/proxy-assignment-dialog";
 import { ProxyManagementDialog } from "@/components/proxy-management-dialog";
 import { SettingsDialog } from "@/components/settings-dialog";
+import { ShortcutsDialog } from "@/components/shortcuts-dialog";
 import { SyncAllDialog } from "@/components/sync-all-dialog";
 import { SyncConfigDialog } from "@/components/sync-config-dialog";
 import { SyncFollowerDialog } from "@/components/sync-follower-dialog";
@@ -60,6 +62,12 @@ import { useUpdateNotifications } from "@/hooks/use-update-notifications";
 import { useVersionUpdater } from "@/hooks/use-version-updater";
 import { useVpnEvents } from "@/hooks/use-vpn-events";
 import { useWayfernTerms } from "@/hooks/use-wayfern-terms";
+import {
+  matchesGroupDigit,
+  matchesShortcut,
+  SHORTCUTS,
+  type ShortcutId,
+} from "@/lib/shortcuts";
 import {
   dismissToast,
   showErrorToast,
@@ -155,6 +163,8 @@ export default function Home() {
   const syncUnlocked = crossOsUnlocked || selfHostedSyncConfigured;
 
   const [createProfileDialogOpen, setCreateProfileDialogOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [shortcutsDialogOpen, setShortcutsDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [operationLogsOpen, setOperationLogsOpen] = useState(false);
   const [integrationsDialogOpen, setIntegrationsDialogOpen] = useState(false);
@@ -237,6 +247,50 @@ export default function Home() {
   const handleSelectGroup = useCallback((groupId: string) => {
     setSelectedGroupId(groupId);
     setSelectedProfiles([]);
+  }, []);
+
+  // Ordered group targets consumed by the command palette and shortcuts dialog
+  // for Mod+1..9 jump-to-group bindings. "default" is the catch-all view.
+  const groupTargets = useMemo(
+    () => [
+      { id: "default", name: t("groups.defaultGroup") },
+      ...groupsData.map((g) => ({ id: g.id, name: g.name })),
+    ],
+    [groupsData, t],
+  );
+
+  // Map a declarative shortcut id onto the fork's dialog-based navigation.
+  const runShortcut = useCallback((id: ShortcutId) => {
+    switch (id) {
+      case "openPalette":
+        setCommandPaletteOpen((prev) => !prev);
+        break;
+      case "openShortcuts":
+        setShortcutsDialogOpen((prev) => !prev);
+        break;
+      case "importProfile":
+        setImportProfileDialogOpen(true);
+        break;
+      case "goProfiles":
+        setSelectedGroupId("default");
+        setSelectedProfiles([]);
+        break;
+      case "goProxies":
+        setProxyManagementDialogOpen(true);
+        break;
+      case "goExtensions":
+        setExtensionManagementDialogOpen(true);
+        break;
+      case "goGroups":
+        setGroupManagementDialogOpen(true);
+        break;
+      case "goIntegrations":
+        setIntegrationsDialogOpen(true);
+        break;
+      case "goSettings":
+        setSettingsDialogOpen(true);
+        break;
+    }
   }, []);
 
   // Check for missing binaries and offer to download them
@@ -1153,6 +1207,60 @@ export default function Home() {
     void checkSelfHostedSync();
   }, [checkSelfHostedSync]);
 
+  // Global keyboard shortcuts. ⌘K / ⌘/ always fire (even from inputs) so the
+  // palette and help are always reachable; every other binding is skipped
+  // while a text field is focused so typing doesn't trigger navigation.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const inEditable =
+        !!target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable);
+
+      const palette = SHORTCUTS.find((s) => s.id === "openPalette");
+      const help = SHORTCUTS.find((s) => s.id === "openShortcuts");
+
+      if (palette && matchesShortcut(palette, e)) {
+        e.preventDefault();
+        runShortcut("openPalette");
+        return;
+      }
+      if (help && matchesShortcut(help, e)) {
+        e.preventDefault();
+        runShortcut("openShortcuts");
+        return;
+      }
+
+      if (inEditable) return;
+
+      const digit = matchesGroupDigit(e);
+      if (digit !== null) {
+        const target_ = groupTargets[digit - 1];
+        if (target_) {
+          e.preventDefault();
+          handleSelectGroup(target_.id);
+        }
+        return;
+      }
+
+      for (const s of SHORTCUTS) {
+        if (s.id === "openPalette" || s.id === "openShortcuts") continue;
+        if (matchesShortcut(s, e)) {
+          e.preventDefault();
+          runShortcut(s.id);
+          return;
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handler);
+    return () => {
+      window.removeEventListener("keydown", handler);
+    };
+  }, [runShortcut, groupTargets, handleSelectGroup]);
+
   // Filter data by selected group and search query
   const filteredProfiles = useMemo(() => {
     let filtered = profiles;
@@ -1280,6 +1388,9 @@ export default function Home() {
             onIntegrationsDialogOpen={setIntegrationsDialogOpen}
             onExtensionManagementDialogOpen={setExtensionManagementDialogOpen}
             onOperationLogsDialogOpen={setOperationLogsOpen}
+            onCommandPaletteOpen={() => {
+              setCommandPaletteOpen(true);
+            }}
             searchQuery={searchQuery}
             onSearchQueryChange={setSearchQuery}
           />
@@ -1752,6 +1863,28 @@ export default function Home() {
         leaderProfile={syncLeaderProfile}
         allProfiles={profiles}
         runningProfiles={runningProfiles}
+      />
+
+      <CommandPalette
+        open={commandPaletteOpen}
+        onOpenChange={setCommandPaletteOpen}
+        onAction={runShortcut}
+        groupTargets={groupTargets}
+        onSelectGroup={handleSelectGroup}
+        profiles={profiles}
+        runningProfileIds={runningProfiles}
+        onLaunchProfile={(profile) => {
+          void launchProfile(profile);
+        }}
+        onKillProfile={(profile) => {
+          void handleKillProfile(profile);
+        }}
+      />
+
+      <ShortcutsDialog
+        open={shortcutsDialogOpen}
+        onOpenChange={setShortcutsDialogOpen}
+        groupTargets={groupTargets}
       />
     </div>
   );

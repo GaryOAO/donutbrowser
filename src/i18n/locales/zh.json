@@ -1785,5 +1785,35 @@
     "selectPlaceholder": "选择一个选项",
     "mixedSelection": "所选配置文件的当前值不同。请选择一个值应用到所有配置文件。",
     "applyToAll": "应用到所有选中项"
+  },
+  "shortcuts": {
+    "openPalette": "打开命令面板",
+    "openShortcuts": "显示键盘快捷键",
+    "importProfile": "导入配置文件",
+    "goProfiles": "前往配置文件",
+    "goProxies": "管理代理",
+    "goExtensions": "管理扩展",
+    "goGroups": "管理分组",
+    "goIntegrations": "打开集成",
+    "goSettings": "打开设置"
+  },
+  "shortcutsDialog": {
+    "title": "键盘快捷键",
+    "description": "无需离开键盘即可快速导航和操作。"
+  },
+  "commandPalette": {
+    "placeholder": "输入命令或搜索...",
+    "empty": "未找到结果。",
+    "groups": {
+      "navigation": "导航",
+      "actions": "操作",
+      "profileGroups": "配置文件分组",
+      "profiles": "配置文件"
+    },
+    "actions": {
+      "launchProfile": "启动 {{name}}",
+      "stopProfile": "停止 {{name}}"
+    },
+    "open": "打开命令面板"
   }
 }
