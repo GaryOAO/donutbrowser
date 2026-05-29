@@ -1,6 +1,30 @@
 # Changelog
 
 
+## v0.23.0 (2026-05-29)
+
+> Fork-specific release (GaryOAO/donutbrowser). Ports three useful upstream
+> capabilities into the fork without disturbing existing custom functionality,
+> and fixes the auto-updater so it no longer offers (and overwrites with) the
+> upstream build.
+
+### Features
+
+- **Latest Camoufox support via real-fingerprint presets.** Ported upstream's preset path: when no explicit fingerprint is supplied, a preset is matched against the Camoufox binary's Firefox version (bundles for FF ≤148 and FF 149+), falling back to the existing Bayesian-network synthesizer. Behavior is unchanged when an explicit fingerprint is passed.
+- **Keyboard shortcuts + command palette.** New ⌘K command palette (cmdk) and ⌘/ shortcuts help. Upstream's page-based navigation actions were remapped onto the fork's dialog model (`Mod+1..9` switch groups; shortcuts open the corresponding dialogs; palette can launch/stop profiles).
+- **Password-protected profiles.** Per-profile AES-256-GCM on-disk encryption (reusing the fork's existing `sync::encryption` primitives), with set/unlock/change/remove flows, progressive lockout, and atomic staging+backup so an interrupted operation never loses data. New `password_protected`/`created_at` profile fields and a `keep_decrypted_profiles_in_ram` setting are all `#[serde(default)]` for backward compatibility with existing profiles.
+
+### Fixes
+
+- **Auto-updater now targets the fork repository** (`GaryOAO/donutbrowser`) instead of upstream `zhom/donutbrowser`. Previously the updater offered the upstream release and, on macOS/Windows, would silently overwrite this fork build — wiping all fork-specific features. Only fork releases are offered now.
+
+### Notes
+
+- Cookie import/export format support (Netscape/JSON) was already present in the fork; no change was needed.
+- Ports were implemented on isolated worktree branches and merged after a clean `pnpm format` + `pnpm lint` (biome + tsc + clippy `-D warnings` + typos) and `cargo test --lib` (400 passed).
+- Password-protected and ephemeral are mutually exclusive; a forgotten profile password is unrecoverable by design.
+
+
 ## v0.22.8 (2026-05-29)
 
 > Fork-specific release (GaryOAO/donutbrowser). Comprehensive UX, performance,
