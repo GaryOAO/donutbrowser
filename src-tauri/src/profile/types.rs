@@ -91,6 +91,10 @@ pub struct BrowserProfile {
   pub dns_blocklist: Option<String>,
   #[serde(default)]
   pub deleted_at: Option<u64>,
+  #[serde(default)]
+  pub password_protected: bool,
+  #[serde(default)]
+  pub created_at: Option<u64>,
 }
 
 pub fn default_release_type() -> String {

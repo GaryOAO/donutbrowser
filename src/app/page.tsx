@@ -26,6 +26,7 @@ import { LaunchOnLoginDialog } from "@/components/launch-on-login-dialog";
 import { OperationLogsDialog } from "@/components/operation-logs-dialog";
 import { PermissionDialog } from "@/components/permission-dialog";
 import { ProfilesDataTable } from "@/components/profile-data-table";
+import { ProfilePasswordDialog } from "@/components/profile-password-dialog";
 import { ProfileSelectorDialog } from "@/components/profile-selector-dialog";
 import { ProfileSyncDialog } from "@/components/profile-sync-dialog";
 import { ProxyAssignmentDialog } from "@/components/proxy-assignment-dialog";
@@ -212,6 +213,9 @@ export default function Home() {
   const [currentProfileForCamoufoxConfig, setCurrentProfileForCamoufoxConfig] =
     useState<BrowserProfile | null>(null);
   const [cloneProfile, setCloneProfile] = useState<BrowserProfile | null>(null);
+  const [profileToUnlock, setProfileToUnlock] = useState<BrowserProfile | null>(
+    null,
+  );
   const [hasCheckedStartupPrompt, setHasCheckedStartupPrompt] = useState(false);
   const [launchOnLoginDialogOpen, setLaunchOnLoginDialogOpen] = useState(false);
   const [windowResizeWarningOpen, setWindowResizeWarningOpen] = useState(false);
@@ -695,6 +699,22 @@ export default function Home() {
           }
         } catch (error) {
           console.error("Failed to check window resize warning:", error);
+        }
+      }
+
+      // Password-protected profiles must be unlocked before launch. Prompt
+      // for the password and defer the launch until the unlock succeeds.
+      if (profile.password_protected) {
+        try {
+          const locked = await invoke<boolean>("is_profile_locked", {
+            profileId: profile.id,
+          });
+          if (locked) {
+            setProfileToUnlock(profile);
+            return;
+          }
+        } catch (error) {
+          console.error("Failed to check profile lock state:", error);
         }
       }
 
@@ -1652,6 +1672,18 @@ export default function Home() {
           setCloneProfile(null);
         }}
         profile={cloneProfile}
+      />
+
+      <ProfilePasswordDialog
+        isOpen={!!profileToUnlock}
+        onClose={() => {
+          setProfileToUnlock(null);
+        }}
+        profile={profileToUnlock}
+        mode="unlock"
+        onSuccess={(unlockedProfile) => {
+          void launchProfile(unlockedProfile);
+        }}
       />
 
       <CamoufoxConfigDialog

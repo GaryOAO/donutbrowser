@@ -172,7 +172,9 @@
       "clearCacheFailed": "Failed to clear cache"
     },
     "disableAutoUpdates": "Disable App Auto Updates",
-    "disableAutoUpdatesDescription": "Prevent the app from automatically checking and installing Donut Browser updates. Browser updates are not affected."
+    "disableAutoUpdatesDescription": "Prevent the app from automatically checking and installing Donut Browser updates. Browser updates are not affected.",
+    "keepDecryptedProfilesInRam": "Keep Decrypted Profiles In RAM",
+    "keepDecryptedProfilesInRamDescription": "Preserve the decrypted in-RAM copy of password-protected profiles between launches for faster startup. The on-disk copy stays encrypted regardless."
   },
   "header": {
     "searchPlaceholder": "Search profiles...",
@@ -288,7 +290,8 @@
       "runFailed": "Bulk task failed",
       "cancel": "Cancel",
       "progress": "{{completed}} of {{total}} complete"
-    }
+    },
+    "passwordProtectedBadge": "Password Protected"
   },
   "createProfile": {
     "title": "Create New Profile",
@@ -1815,5 +1818,97 @@
       "stopProfile": "Stop {{name}}"
     },
     "open": "Open command palette"
+  },
+  "backendErrors": {
+    "incorrectPassword": "Incorrect password",
+    "lockedOut": "Too many incorrect attempts. Try again in {{duration}}.",
+    "lockedOutDuration": {
+      "seconds": "{{seconds}}s",
+      "minutes": "{{minutes}} min",
+      "hours": "{{hours}} h"
+    },
+    "profileNotFound": "Profile not found",
+    "profileNotProtected": "Profile is not password protected",
+    "profileAlreadyProtected": "Profile is already password protected",
+    "profileRunning": "Cannot perform this action while the profile is running",
+    "profileEphemeral": "Ephemeral profiles cannot be password-protected — their data wipes on quit.",
+    "profileMissingSalt": "Profile is missing its encryption salt",
+    "profileLocked": "Profile is locked. Enter the password first.",
+    "invalidProfileId": "Invalid profile id",
+    "passwordTooShort": "Password must be at least {{min}} characters",
+    "proxyNotFound": "Proxy not found",
+    "groupNotFound": "Group not found",
+    "vpnNotFound": "VPN not found",
+    "extensionNotFound": "Extension not found",
+    "extensionGroupNotFound": "Extension group not found",
+    "cannotModifyCloudManagedProxy": "Cannot modify sync for a cloud-managed proxy",
+    "syncLockedByProfile": "Sync cannot be disabled while this is used by synced profiles",
+    "syncNotConfigured": "Sync is not configured. Sign in or configure a self-hosted server first.",
+    "internal": "Something went wrong: {{detail}}",
+    "invalidLaunchHookUrl": "Invalid launch hook URL. Use a full http:// or https:// URL.",
+    "cookieDbLocked": "Could not read cookies — the database is locked. Close the browser and try again.",
+    "cookieDbUnavailable": "Could not read cookies — the cookie store is unavailable.",
+    "selfHostedRequiresLogout": "Sign out of your Donut account before configuring a self-hosted server."
+  },
+  "profilePassword": {
+    "set": {
+      "title": "Set Profile Password",
+      "description": "Encrypt the on-disk data for {{name}}. You will need this password every time you launch the profile.",
+      "button": "Encrypt Profile"
+    },
+    "unlock": {
+      "title": "Unlock Profile",
+      "description": "Enter the password to unlock {{name}}.",
+      "button": "Unlock"
+    },
+    "change": {
+      "title": "Change Profile Password",
+      "description": "Re-encrypt {{name}} with a new password.",
+      "button": "Change Password"
+    },
+    "remove": {
+      "title": "Remove Profile Password",
+      "description": "Decrypt the on-disk data for {{name}}. The profile will no longer be password protected.",
+      "button": "Remove Password"
+    },
+    "fields": {
+      "password": "Password",
+      "currentPassword": "Current password",
+      "newPassword": "New password",
+      "confirm": "Confirm password",
+      "confirmPassword": "Confirm new password"
+    },
+    "errors": {
+      "oldPasswordRequired": "Current password is required",
+      "passwordRequired": "Password is required",
+      "tooShort": "Password must be at least 8 characters",
+      "mismatch": "Passwords do not match"
+    },
+    "toasts": {
+      "set": "Profile is now password protected",
+      "changed": "Profile password changed",
+      "removed": "Profile password removed"
+    },
+    "warnings": {
+      "forgetWarningTitle": "Important: this password is not recoverable",
+      "forgetWarningBody": "Donut Browser cannot reset, recover, or bypass this password. If you forget it, you will permanently lose access to this profile's data."
+    },
+    "modes": {
+      "set": "Set",
+      "change": "Change",
+      "remove": "Remove",
+      "validate": "Validate"
+    },
+    "verifyDialog": {
+      "title": "Validate Profile Password",
+      "description": "Enter the profile password to confirm it matches the one stored on disk.",
+      "submit": "Validate",
+      "matchToast": "Password is correct"
+    }
+  },
+  "profileSettings": {
+    "setPassword": "Set Password",
+    "changePassword": "Change Password",
+    "removePassword": "Remove Password"
   }
 }

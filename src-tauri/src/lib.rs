@@ -80,6 +80,11 @@ use profile::manager::{
   update_wayfern_config,
 };
 
+use profile::password::{
+  change_profile_password, is_profile_locked, lock_profile, remove_profile_password,
+  set_profile_password, unlock_profile, verify_profile_password,
+};
+
 use browser_version_manager::{
   fetch_browser_versions_cached_first, fetch_browser_versions_with_count,
   fetch_browser_versions_with_count_cached_first, get_supported_browsers,
@@ -1236,6 +1241,8 @@ async fn generate_sample_fingerprint(
     created_by_email: None,
     dns_blocklist: None,
     deleted_at: None,
+    password_protected: false,
+    created_at: None,
   };
 
   if browser == "camoufox" {
@@ -2041,6 +2048,17 @@ pub fn run() {
                     );
                   }
 
+                  // Re-encrypt password-protected profiles when the browser
+                  // exits naturally (user closing the window) — the explicit
+                  // kill path in browser_runner.rs handles app-driven stops.
+                  // Must run BEFORE `mark_profile_stopped` because that
+                  // releases any queued sync run, and a sync that picks up the
+                  // on-disk dir before re-encryption finishes uploads the
+                  // previous snapshot.
+                  if !is_running && profile.password_protected {
+                    crate::profile::password::complete_after_quit_and_wait(&profile).await;
+                  }
+
                   // Notify sync scheduler of running state changes
                   if let Some(scheduler) = sync::get_global_scheduler() {
                     if is_running {
@@ -2227,6 +2245,13 @@ pub fn run() {
       update_profile_dns_blocklist,
       check_browser_status,
       kill_browser_profile,
+      set_profile_password,
+      change_profile_password,
+      remove_profile_password,
+      verify_profile_password,
+      unlock_profile,
+      lock_profile,
+      is_profile_locked,
       run_bulk_browser_tasks,
       cancel_bulk_browser_task,
       rename_profile,
@@ -2485,6 +2510,12 @@ mod tests {
       "install_gateway",
       "start_gateway_for_node",
       "stop_gateway_for_node",
+      // Profile lock is invoked programmatically / via UI affordances that the
+      // unused-command scanner doesn't always detect.
+      "lock_profile",
+      // Password validation is exposed via API/MCP and the password-management
+      // flow; no dedicated frontend call site yet.
+      "verify_profile_password",
     ];
 
     // Extract command names from the generate_handler! macro in this file

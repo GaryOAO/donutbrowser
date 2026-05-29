@@ -172,7 +172,9 @@
       "clearCacheFailed": "Error al limpiar la caché"
     },
     "disableAutoUpdates": "Desactivar Actualizaciones Automáticas de la App",
-    "disableAutoUpdatesDescription": "Evita que la aplicación busque e instale actualizaciones de Donut Browser automáticamente. Las actualizaciones de navegadores no se ven afectadas."
+    "disableAutoUpdatesDescription": "Evita que la aplicación busque e instale actualizaciones de Donut Browser automáticamente. Las actualizaciones de navegadores no se ven afectadas.",
+    "keepDecryptedProfilesInRam": "Mantener Perfiles Descifrados en RAM",
+    "keepDecryptedProfilesInRamDescription": "Conservar la copia descifrada en RAM de los perfiles protegidos por contraseña entre lanzamientos para un inicio más rápido. La copia en disco permanece cifrada en cualquier caso."
   },
   "header": {
     "searchPlaceholder": "Buscar perfiles...",
@@ -288,7 +290,8 @@
       "runFailed": "Bulk task failed",
       "cancel": "Cancel",
       "progress": "{{completed}} of {{total}} complete"
-    }
+    },
+    "passwordProtectedBadge": "Protegido por Contraseña"
   },
   "createProfile": {
     "title": "Crear Nuevo Perfil",
@@ -1815,5 +1818,97 @@
       "stopProfile": "Detener {{name}}"
     },
     "open": "Abrir paleta de comandos"
+  },
+  "backendErrors": {
+    "incorrectPassword": "Contraseña incorrecta",
+    "lockedOut": "Demasiados intentos incorrectos. Vuelve a intentar en {{duration}}.",
+    "lockedOutDuration": {
+      "seconds": "{{seconds}}s",
+      "minutes": "{{minutes}} min",
+      "hours": "{{hours}} h"
+    },
+    "profileNotFound": "Perfil no encontrado",
+    "profileNotProtected": "El perfil no está protegido por contraseña",
+    "profileAlreadyProtected": "El perfil ya está protegido por contraseña",
+    "profileRunning": "No se puede realizar esta acción mientras el perfil está en ejecución",
+    "profileEphemeral": "Los perfiles efímeros no pueden tener contraseña — sus datos se borran al salir.",
+    "profileMissingSalt": "Al perfil le falta su sal de cifrado",
+    "profileLocked": "El perfil está bloqueado. Introduce la contraseña primero.",
+    "invalidProfileId": "ID de perfil no válido",
+    "passwordTooShort": "La contraseña debe tener al menos {{min}} caracteres",
+    "proxyNotFound": "Proxy no encontrado",
+    "groupNotFound": "Grupo no encontrado",
+    "vpnNotFound": "VPN no encontrada",
+    "extensionNotFound": "Extensión no encontrada",
+    "extensionGroupNotFound": "Grupo de extensiones no encontrado",
+    "cannotModifyCloudManagedProxy": "No se puede modificar la sincronización de un proxy gestionado en la nube",
+    "syncLockedByProfile": "No se puede desactivar la sincronización mientras se usa en perfiles sincronizados",
+    "syncNotConfigured": "La sincronización no está configurada. Inicia sesión o configura un servidor propio.",
+    "internal": "Algo salió mal: {{detail}}",
+    "invalidLaunchHookUrl": "URL del hook de inicio no válida. Usa una URL completa http:// o https://.",
+    "cookieDbLocked": "No se pudieron leer las cookies — la base de datos está bloqueada. Cierra el navegador e inténtalo de nuevo.",
+    "cookieDbUnavailable": "No se pudieron leer las cookies — el almacén de cookies no está disponible.",
+    "selfHostedRequiresLogout": "Cierra sesión en tu cuenta de Donut antes de configurar un servidor autoalojado."
+  },
+  "profilePassword": {
+    "set": {
+      "title": "Establecer Contraseña del Perfil",
+      "description": "Cifra los datos en disco de {{name}}. Necesitarás esta contraseña cada vez que abras el perfil.",
+      "button": "Cifrar Perfil"
+    },
+    "unlock": {
+      "title": "Desbloquear Perfil",
+      "description": "Introduce la contraseña para desbloquear {{name}}.",
+      "button": "Desbloquear"
+    },
+    "change": {
+      "title": "Cambiar Contraseña del Perfil",
+      "description": "Vuelve a cifrar {{name}} con una nueva contraseña.",
+      "button": "Cambiar Contraseña"
+    },
+    "remove": {
+      "title": "Quitar Contraseña del Perfil",
+      "description": "Descifra los datos en disco de {{name}}. El perfil dejará de estar protegido por contraseña.",
+      "button": "Quitar Contraseña"
+    },
+    "fields": {
+      "password": "Contraseña",
+      "currentPassword": "Contraseña actual",
+      "newPassword": "Nueva contraseña",
+      "confirm": "Confirmar contraseña",
+      "confirmPassword": "Confirmar nueva contraseña"
+    },
+    "errors": {
+      "oldPasswordRequired": "Se requiere la contraseña actual",
+      "passwordRequired": "Se requiere la contraseña",
+      "tooShort": "La contraseña debe tener al menos 8 caracteres",
+      "mismatch": "Las contraseñas no coinciden"
+    },
+    "toasts": {
+      "set": "El perfil ahora está protegido por contraseña",
+      "changed": "Contraseña del perfil cambiada",
+      "removed": "Contraseña del perfil eliminada"
+    },
+    "warnings": {
+      "forgetWarningTitle": "Importante: esta contraseña no se puede recuperar",
+      "forgetWarningBody": "Donut Browser no puede restablecer, recuperar ni omitir esta contraseña. Si la olvidas, perderás permanentemente el acceso a los datos de este perfil."
+    },
+    "modes": {
+      "set": "Establecer",
+      "change": "Cambiar",
+      "remove": "Quitar",
+      "validate": "Validar"
+    },
+    "verifyDialog": {
+      "title": "Validar contraseña del perfil",
+      "description": "Introduce la contraseña del perfil para confirmar que coincide con la almacenada en disco.",
+      "submit": "Validar",
+      "matchToast": "La contraseña es correcta"
+    }
+  },
+  "profileSettings": {
+    "setPassword": "Establecer Contraseña",
+    "changePassword": "Cambiar Contraseña",
+    "removePassword": "Quitar Contraseña"
   }
 }

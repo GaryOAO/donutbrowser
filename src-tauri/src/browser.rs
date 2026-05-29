@@ -1221,6 +1221,8 @@ mod tests {
       created_by_email: None,
       dns_blocklist: None,
       deleted_at: None,
+      password_protected: false,
+      created_at: None,
     };
 
     let path = profile.get_profile_data_path(&profiles_dir);

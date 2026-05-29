@@ -511,8 +511,12 @@ impl BrowserRunner {
         );
       }
 
-      // Create ephemeral dir for ephemeral profiles
-      let override_profile_path = if profile.ephemeral {
+      // Create ephemeral dir for ephemeral or password-protected profiles
+      let override_profile_path = if profile.password_protected {
+        let dir = crate::profile::password::prepare_for_launch(profile)
+          .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.into() })?;
+        Some(dir)
+      } else if profile.ephemeral {
         let dir = crate::ephemeral_dirs::create_ephemeral_dir(&profile.id.to_string())
           .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.into() })?;
         Some(dir)
@@ -781,8 +785,11 @@ impl BrowserRunner {
         );
       }
 
-      // Create ephemeral dir for ephemeral profiles
-      if profile.ephemeral {
+      // Create ephemeral dir for ephemeral or password-protected profiles
+      if profile.password_protected {
+        crate::profile::password::prepare_for_launch(profile)
+          .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.into() })?;
+      } else if profile.ephemeral {
         crate::ephemeral_dirs::create_ephemeral_dir(&profile.id.to_string())
           .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.into() })?;
       }
@@ -1675,7 +1682,12 @@ impl BrowserRunner {
         );
       }
 
-      if profile.ephemeral {
+      if profile.password_protected {
+        // Await re-encryption so the queued sync (released later by
+        // `mark_profile_stopped`) sees fresh ciphertext on disk instead of
+        // the previous snapshot.
+        crate::profile::password::complete_after_quit_and_wait(profile).await;
+      } else if profile.ephemeral {
         crate::ephemeral_dirs::remove_ephemeral_dir(&profile.id.to_string());
       }
 
@@ -2015,7 +2027,12 @@ impl BrowserRunner {
         );
       }
 
-      if profile.ephemeral {
+      if profile.password_protected {
+        // Await re-encryption so the queued sync (released later by
+        // `mark_profile_stopped`) sees fresh ciphertext on disk instead of
+        // the previous snapshot.
+        crate::profile::password::complete_after_quit_and_wait(profile).await;
+      } else if profile.ephemeral {
         crate::ephemeral_dirs::remove_ephemeral_dir(&profile.id.to_string());
       }
 

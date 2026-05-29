@@ -52,6 +52,8 @@ export interface BrowserProfile {
   created_by_email?: string;
   dns_blocklist?: string;
   deleted_at?: number;
+  password_protected?: boolean;
+  created_at?: number;
 }
 
 export interface Extension {

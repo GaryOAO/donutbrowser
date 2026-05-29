@@ -14,6 +14,7 @@ import {
   LuGlobe,
   LuGroup,
   LuLink,
+  LuLock,
   LuPlus,
   LuPuzzle,
   LuRefreshCw,
@@ -73,6 +74,9 @@ interface ProfileInfoDialogProps {
   onCloneProfile?: (profile: BrowserProfile) => void;
   onDeleteProfile?: (profile: BrowserProfile) => void;
   onLaunchWithSync?: (profile: BrowserProfile) => void;
+  onSetPassword?: (profile: BrowserProfile) => void;
+  onChangePassword?: (profile: BrowserProfile) => void;
+  onRemovePassword?: (profile: BrowserProfile) => void;
   crossOsUnlocked?: boolean;
   isRunning?: boolean;
   isDisabled?: boolean;
@@ -122,6 +126,9 @@ export function ProfileInfoDialog({
   onCloneProfile,
   onDeleteProfile,
   onLaunchWithSync,
+  onSetPassword,
+  onChangePassword,
+  onRemovePassword,
   crossOsUnlocked = true,
   isRunning = false,
   isDisabled = false,
@@ -361,6 +368,40 @@ export function ProfileInfoDialog({
         handleAction(() => onOpenLaunchHook?.(profile));
       },
       hidden: !onOpenLaunchHook,
+    },
+    {
+      icon: <LuLock className="w-4 h-4" />,
+      label: t("profileSettings.setPassword"),
+      onClick: () => {
+        handleAction(() => onSetPassword?.(profile));
+      },
+      disabled: isDisabled,
+      runningBadge: isRunning,
+      hidden:
+        profile.ephemeral === true ||
+        profile.password_protected === true ||
+        !onSetPassword,
+    },
+    {
+      icon: <LuLock className="w-4 h-4" />,
+      label: t("profileSettings.changePassword"),
+      onClick: () => {
+        handleAction(() => onChangePassword?.(profile));
+      },
+      disabled: isDisabled,
+      runningBadge: isRunning,
+      hidden: profile.password_protected !== true || !onChangePassword,
+    },
+    {
+      icon: <LuLock className="w-4 h-4" />,
+      label: t("profileSettings.removePassword"),
+      onClick: () => {
+        handleAction(() => onRemovePassword?.(profile));
+      },
+      disabled: isDisabled,
+      runningBadge: isRunning,
+      destructive: true,
+      hidden: profile.password_protected !== true || !onRemovePassword,
     },
     {
       icon: <LuTrash2 className="w-4 h-4" />,
